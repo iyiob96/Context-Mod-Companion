@@ -30,7 +30,7 @@ The full drawing (bar chart, animated companion, click to wave) is for the Claud
 You need Claude Code with mods support. In a **terminal** Claude Code session, type:
 
 ```
-/plugin install yemeni-context-band --marketplace <owner>/Context-Mod-Companion
+/plugin install yemeni-context-band --marketplace iyiob96/Context-Mod-Companion
 ```
 
 Answer `y` to add the marketplace, then pick the **user** scope so it loads in every session. Sessions in the desktop app's Code tab pick it up too.
