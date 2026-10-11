@@ -1,0 +1,6 @@
+{
+  "name": "context-mod-companion",
+  "description": "Context window band with RTK savings and a pixel Yemeni companion for Claude Code",
+  "owner": { "name": "Ibrahim" },
+  "plugins": [{ "name": "yemeni-context-band", "source": "./" }]
+}
