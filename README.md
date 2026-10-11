@@ -1,6 +1,6 @@
 # Context Mod Companion
 
-A Claude Code mod that puts a context-window band above the prompt box. It shows your [RTK](https://github.com/rtk-ai/rtk) token savings, and a pixel Yemeni companion stands beside it. His mood follows how much context you have left.
+A Claude Code mod that puts a context-window band above the prompt box. It shows your [RTK](https://github.com/rtk-ai/rtk) token savings, and a pixel Yemeni companion stands beside it. His mood follows how much context you have left. An optional kit installs [Matt Pocock's skills](https://github.com/mattpocock/skills) along with it.
 
 ![The band above the prompt, with the companion standing to its right](assets/band.png)
 
@@ -27,15 +27,40 @@ The full drawing (bar chart, animated companion, click to wave) is for the Claud
 
 ## Install
 
-You need Claude Code with mods support. In a **terminal** Claude Code session, type:
+You need Claude Code with mods support. This repository is private, so the GitHub account you use with Claude Code needs access to it.
+
+This marketplace has two plugins:
+
+| Plugin | What it installs |
+| --- | --- |
+| `context-companion-kit` | The band **and** [Matt Pocock's skills](https://github.com/mattpocock/skills) (`mattpocock-skills` from Anthropic's official marketplace) |
+| `yemeni-context-band` | The band on its own |
+
+### The kit (band + Matt Pocock's skills)
+
+1. Add Anthropic's official marketplace, if you don't have it yet (`claude plugin marketplace list` shows it as `claude-plugins-official`):
+
+   ```
+   claude plugin marketplace add https://github.com/anthropics/claude-plugins-official.git
+   ```
+
+2. Install the kit. In a **terminal** Claude Code session, type:
+
+   ```
+   /plugin install context-companion-kit --marketplace iyiob96/Context-Mod-Companion
+   ```
+
+   Answer `y` to add the marketplace, then pick the **user** scope so it loads in every session. Sessions in the desktop app's Code tab pick it up too. The band and Matt Pocock's skills are installed with it.
+
+3. Set up Matt Pocock's skills for your project: run `/mattpocock-skills:setup-matt-pocock-skills`, then `/mattpocock-skills:grill-with-docs` before writing code.
+
+If you skip step 1, the kit installs the band but can't find Matt Pocock's skills. The band still works, and the kit shows as failed to load until you add the official marketplace and run `/reload-plugins`.
+
+### The band only
 
 ```
 /plugin install yemeni-context-band --marketplace iyiob96/Context-Mod-Companion
 ```
-
-Answer `y` to add the marketplace, then pick the **user** scope so it loads in every session. Sessions in the desktop app's Code tab pick it up too.
-
-This repository is private, so the GitHub account you use with Claude Code needs access to it.
 
 ## RTK (token savings)
 

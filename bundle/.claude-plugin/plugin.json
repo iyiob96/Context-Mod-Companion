@@ -1,0 +1,11 @@
+{
+  "name": "context-companion-kit",
+  "version": "0.3.0",
+  "description": "Installs the Yemeni context band together with Matt Pocock's skills",
+  "author": { "name": "Ibrahim" },
+  "repository": "https://github.com/iyiob96/Context-Mod-Companion",
+  "dependencies": [
+    "yemeni-context-band",
+    { "name": "mattpocock-skills", "marketplace": "claude-plugins-official" }
+  ]
+}

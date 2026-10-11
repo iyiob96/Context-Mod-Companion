@@ -1,7 +1,8 @@
 {
   "name": "yemeni-context-band",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Context-window band above the prompt with RTK token savings and a clickable pixel Yemeni companion whose mood follows how much context is left",
   "author": { "name": "Ibrahim" },
+  "repository": "https://github.com/iyiob96/Context-Mod-Companion",
   "types": "./types/index.d.ts"
 }
