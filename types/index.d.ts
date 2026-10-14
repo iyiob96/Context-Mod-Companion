@@ -11,6 +11,15 @@ export type Usage = {
 
 export type Rtk = { total: number; session: number; avgPct: number; commands: number }
 
+export type SetupStep = 'rtk' | 'hook' | 'bash' | 'matt'
+
+export type Setup = {
+  missing: SetupStep[]
+  phase: 'idle' | 'running' | 'done' | 'hidden'
+  progress: string
+  results: string[]
+}
+
 declare module 'claude-code' {
   interface PluginState {
     'yemeni-context-band': {
@@ -18,6 +27,7 @@ declare module 'claude-code' {
       usage: Usage | null
       rtk: Rtk | null
       rtkBaseline: number | null
+      setup: Setup | null
     }
   }
 }

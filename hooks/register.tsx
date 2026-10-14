@@ -1,15 +1,31 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
-import type { Rtk, Segment, Usage } from '../types'
+import type { Rtk, Segment, Setup, SetupStep, Usage } from '../types'
 import { characterGrid, EYES, HEIGHT, PALETTE, SKIN, WIDTH } from './character'
 import type { Mood } from './character'
-import { hasBashLine, INSTALL_TEXT, isHooked, RTK_COMMAND, setupReport, withBashLine } from './rtk-setup'
+import {
+  hasBashLine,
+  hasMarketplace,
+  isEnabled,
+  isHooked,
+  MATT_ID,
+  missingSummary,
+  OFFICIAL_MARKETPLACE,
+  OFFICIAL_MARKETPLACE_URL,
+  RTK_INSTALL,
+  RTK_MANUAL,
+  SETUP_COMMAND,
+  STEP_LABEL,
+  STEP_ORDER,
+  withBashLine,
+} from './setup'
 
 const isShown = atom({ plugin: 'yemeni-context-band', key: 'isShown' } as const, false)
 const usageAtom = atom({ plugin: 'yemeni-context-band', key: 'usage' } as const, null)
 const rtkAtom = atom({ plugin: 'yemeni-context-band', key: 'rtk' } as const, null)
 const rtkBaseline = atom({ plugin: 'yemeni-context-band', key: 'rtkBaseline' } as const, null)
+const setupAtom = atom({ plugin: 'yemeni-context-band', key: 'setup' } as const, null as Setup | null)
 
 const ACCENT = '#e0875a'
 const RTK = '#7ccf8a'
@@ -65,7 +81,9 @@ async function refreshUsage($: EngineInterface): Promise<void> {
 }
 
 async function refreshRtk($: EngineInterface): Promise<void> {
-  const { exitCode, stdout } = await $.process.run(['rtk', 'gain', '--format', 'json'], { timeoutMs: 10_000 })
+  const bin = await findRtk($)
+  if (!bin) return
+  const { exitCode, stdout } = await $.process.run([bin, 'gain', '--format', 'json'], { timeoutMs: 10_000 })
   if (exitCode !== 0) return
   const s = JSON.parse(stdout).summary
   if (!s || typeof s.total_saved !== 'number') return
@@ -85,19 +103,51 @@ async function refreshRtk($: EngineInterface): Promise<void> {
 
 const quietly = (p: Promise<unknown>) => p.catch(() => undefined)
 
-// ---------- /rtk-setup ----------
+// ---------- setup (RTK, its hook, the Bash line, Matt Pocock's skills) ----------
 
-async function runQuiet($: EngineInterface, argv: string[]) {
+async function runQuiet($: EngineInterface, argv: string[], timeoutMs = 60_000) {
   try {
-    return await $.process.run(argv, { timeoutMs: 60_000 })
+    return await $.process.run(argv, { timeoutMs })
   } catch {
     return null
   }
 }
 
-async function rtkVersion($: EngineInterface): Promise<string | null> {
-  const r = await runQuiet($, ['rtk', '--version'])
-  return r && r.exitCode === 0 ? r.stdout.trim() : null
+// RTK may be installed but not yet on this process's PATH (winget adds it
+// for new processes only), so look where its installers put it too.
+let rtkPath: string | null = null
+
+async function findRtk($: EngineInterface): Promise<string | null> {
+  if (rtkPath) return rtkPath
+  const local = await $.env.get('LOCALAPPDATA')
+  const home = (await $.env.get('USERPROFILE')) ?? (await $.env.get('HOME'))
+  const candidates = ['rtk']
+  if (local) {
+    candidates.push(`${local}/Microsoft/WinGet/Links/rtk.exe`)
+    try {
+      for (const d of await $.fs.list(`${local}/Microsoft/WinGet/Packages`))
+        if (d.name.startsWith('rtk-ai.rtk_')) candidates.push(`${local}/Microsoft/WinGet/Packages/${d.name}/rtk.exe`)
+    } catch {
+      // no winget packages folder
+    }
+  }
+  if (home) candidates.push(`${home}/.local/bin/rtk`, `${home}/.cargo/bin/rtk`)
+  candidates.push('/opt/homebrew/bin/rtk', '/usr/local/bin/rtk')
+  for (const c of candidates) {
+    const r = await runQuiet($, [c, '--version'], 10_000)
+    if (r && r.exitCode === 0) return (rtkPath = c)
+  }
+  return null
+}
+
+async function claudeBin($: EngineInterface): Promise<string> {
+  return (await $.env.get('CLAUDE_CODE_EXECPATH')) ?? 'claude'
+}
+
+async function platform($: EngineInterface): Promise<'windows' | 'mac' | 'linux'> {
+  if ((await $.env.get('OS')) === 'Windows_NT') return 'windows'
+  const r = await runQuiet($, ['uname', '-s'], 5_000)
+  return r?.stdout.trim() === 'Darwin' ? 'mac' : 'linux'
 }
 
 async function claudeMdPath($: EngineInterface): Promise<string | null> {
@@ -115,28 +165,70 @@ async function readTextQuiet($: EngineInterface, path: string): Promise<string |
   }
 }
 
-async function rtkSetup($: EngineInterface): Promise<string> {
-  const version = await rtkVersion($)
-  if (!version) return INSTALL_TEXT
-  const shown = await runQuiet($, ['rtk', 'init', '-g', '--show'])
-  const wasHooked = !!shown && isHooked(shown.stdout)
-  let init: { ok: boolean; output: string } | null = null
-  if (!wasHooked) {
-    const r = await runQuiet($, ['rtk', 'init', '-g', '--auto-patch', '--no-trust-filters'])
-    init = { ok: !!r && r.exitCode === 0, output: r ? r.stderr || r.stdout : 'could not start rtk' }
+async function checkSetup($: EngineInterface): Promise<SetupStep[]> {
+  const missing: SetupStep[] = []
+  const rtk = await findRtk($)
+  if (!rtk) missing.push('rtk', 'hook')
+  else {
+    const shown = await runQuiet($, [rtk, 'init', '-g', '--show'])
+    if (!shown || !isHooked(shown.stdout)) missing.push('hook')
   }
-  const path = await claudeMdPath($)
-  const md = path ? await readTextQuiet($, path) : null
-  return setupReport({ version, wasHooked, init, claudeMd: path ?? '~/.claude/CLAUDE.md', hasBash: hasBashLine(md) })
+  const md = await claudeMdPath($)
+  if (!hasBashLine(md ? await readTextQuiet($, md) : null)) missing.push('bash')
+  const list = await runQuiet($, [await claudeBin($), 'plugin', 'list', '--json'])
+  if (list && list.exitCode === 0 && !isEnabled(list.stdout, MATT_ID)) missing.push('matt')
+  return missing
 }
 
-async function addBashLine($: EngineInterface): Promise<string> {
-  const path = await claudeMdPath($)
-  if (!path) return 'Could not find your home folder. Add the Bash line to ~/.claude/CLAUDE.md yourself (see /rtk-setup).'
-  const md = (await readTextQuiet($, path)) ?? ''
-  if (hasBashLine(md)) return `✓ \`${path}\` already has the Bash line. Nothing changed.`
-  await $.fs.write(path, withBashLine(md))
-  return `✓ Added the Bash line to \`${path}\`. It applies from your next session.`
+async function setProgress($: EngineInterface, progress: string) {
+  await update($, setupAtom, s => (s ? { ...s, progress } : s))
+}
+
+async function doStep($: EngineInterface, step: SetupStep): Promise<string> {
+  if (step === 'rtk') {
+    const os = await platform($)
+    const r = await runQuiet($, RTK_INSTALL[os], 600_000)
+    rtkPath = null
+    return (await findRtk($)) ? '✓ Installed RTK' : `✗ Couldn't install RTK (${r ? (r.stderr || r.stdout).trim().slice(-200) : 'installer not found'}). ${RTK_MANUAL}`
+  }
+  if (step === 'hook') {
+    const rtk = await findRtk($)
+    if (!rtk) return '✗ Skipped the RTK hook: RTK is not installed'
+    const r = await runQuiet($, [rtk, 'init', '-g', '--auto-patch', '--no-trust-filters'])
+    return r && r.exitCode === 0 ? '✓ Hooked RTK into Claude Code' : `✗ \`rtk init -g\` failed: ${(r?.stderr || r?.stdout || '').trim().slice(-200)}`
+  }
+  if (step === 'bash') {
+    const path = await claudeMdPath($)
+    if (!path) return '✗ Could not find your home folder for CLAUDE.md'
+    const md = (await readTextQuiet($, path)) ?? ''
+    if (!hasBashLine(md)) await $.fs.write(path, withBashLine(md))
+    return `✓ Added the Bash-only line to ${path}`
+  }
+  const claude = await claudeBin($)
+  const markets = await runQuiet($, [claude, 'plugin', 'marketplace', 'list', '--json'])
+  if (!markets || !hasMarketplace(markets.stdout, OFFICIAL_MARKETPLACE)) {
+    await runQuiet($, [claude, 'plugin', 'marketplace', 'add', OFFICIAL_MARKETPLACE_URL], 300_000)
+  }
+  const r = await runQuiet($, [claude, 'plugin', 'install', MATT_ID, '--scope', 'user'], 300_000)
+  return r && r.exitCode === 0 ? "✓ Installed Matt Pocock's skills" : `✗ Couldn't install Matt Pocock's skills: ${(r?.stderr || r?.stdout || '').trim().slice(-200)}`
+}
+
+// Runs every missing step in order; the band shows progress, then results.
+async function runSetup($: EngineInterface): Promise<string[]> {
+  const current = await read($, setupAtom)
+  if (current?.phase === 'running') return []
+  const missing = await checkSetup($)
+  await update($, setupAtom, () => ({ missing, phase: 'running' as const, progress: 'checking…', results: [] as string[] }))
+  const results: string[] = []
+  for (const step of STEP_ORDER.filter(s => missing.includes(s))) {
+    await setProgress($, `${STEP_LABEL[step]}…`)
+    results.push(await doStep($, step))
+  }
+  const left = await checkSetup($)
+  await update($, setupAtom, () => ({ missing: left, phase: 'done' as const, progress: '', results }))
+  void quietly(refreshRtk($))
+  $.ui.toast(left.length ? `Setup finished with ${left.length} step(s) left` : 'Setup complete. Restart Claude Code to load everything.')
+  return results
 }
 
 // ---------- drawing ----------
@@ -309,18 +401,30 @@ export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     const result = await next(e)
     await $.command.register({
-      name: RTK_COMMAND,
-      description: 'Install and hook RTK into Claude Code (token savings for the context band)',
-      argumentHint: '[bash]',
+      name: SETUP_COMMAND,
+      description: "Set up RTK, its hook, the Bash-only CLAUDE.md line and Matt Pocock's skills",
     })
-    if (!(await rtkVersion($))) $.ui.toast('Context companion: RTK not found. Run /rtk-setup to set it up.')
-    void quietly(refreshRtk($))
+    void quietly(
+      (async () => {
+        const missing = await checkSetup($)
+        const prev = await read($, setupAtom)
+        if (prev?.phase === 'running') return
+        await update($, setupAtom, () => ({ missing, phase: (missing.length ? 'idle' : 'hidden') as Setup['phase'], progress: '', results: [] }))
+        await refreshRtk($)
+      })(),
+    )
     return result
   })
 
-  on('command.run', { command: RTK_COMMAND }, async ($, e) => ({
-    text: e.args.trim().toLowerCase() === 'bash' ? await addBashLine($) : await rtkSetup($),
-  }))
+  on('command.run', { command: SETUP_COMMAND }, async $ => {
+    const results = await runSetup($)
+    const left = (await read($, setupAtom))?.missing ?? []
+    return {
+      text: results.length
+        ? [...results, '', left.length ? `Still to do: ${missingSummary(left)}.` : 'All set. Restart Claude Code to load RTK\'s hook and Matt Pocock\'s skills.'].join('\n')
+        : 'Everything is already set up.',
+    }
+  })
 
   // The band pops up once the first prompt of the session is sent.
   on('prompt.submit', async ($, e, next) => {
@@ -340,7 +444,53 @@ export const register: Register = on => {
   })
 
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
-    if (e.props.hasSurvey || !(await read($, isShown))) return next(e)
+    if (e.props.hasSurvey) return next(e)
+    const setup = await read($, setupAtom)
+    const shown = await read($, isShown)
+    const needsSetup = !!setup && (setup.phase === 'running' || setup.phase === 'done' || (setup.phase === 'idle' && setup.missing.length > 0))
+    if (!shown && !needsSetup) return next(e)
+
+    // The first-run setup row: shown until setup is done or put off.
+    const ui = $.ui.resolve(e)
+    const hide = () => update($, setupAtom, s => (s ? { ...s, phase: 'hidden' as const } : s))
+    const setupRow = !needsSetup || !setup ? null : setup.phase === 'running' ? (
+      <ui.Box key="setup" flexDirection="row" gap={1} borderStyle="round" borderColor={ACCENT} paddingX={1}>
+        <ui.Text color={ACCENT} bold>Setting up</ui.Text>
+        <ui.Text dimColor>{setup.progress}</ui.Text>
+      </ui.Box>
+    ) : setup.phase === 'done' ? (
+      <ui.Box key="setup" flexDirection="column" borderStyle="round" borderColor={setup.missing.length ? '#f2c14e' : RTK} paddingX={1}>
+        {setup.results.map(r => (
+          <ui.Text>{r}</ui.Text>
+        ))}
+        <ui.Box flexDirection="row" gap={1} alignItems="center">
+          <ui.Text dimColor>
+            {setup.missing.length
+              ? `Still to do: ${missingSummary(setup.missing)}.`
+              : "Restart Claude Code to load RTK's hook and Matt Pocock's skills."}
+          </ui.Text>
+          {setup.missing.length ? <ui.Button key="retry" label="Try again" onPress={() => void runSetup($)} /> : null}
+          <ui.Button key="ok" label="OK" onPress={() => void hide()} />
+        </ui.Box>
+      </ui.Box>
+    ) : (
+      <ui.Box key="setup" flexDirection="row" gap={1} alignItems="center" flexWrap="wrap" borderStyle="round" borderColor={ACCENT} paddingX={1}>
+        <ui.Text color={ACCENT} bold>Finish setup:</ui.Text>
+        <ui.Text dimColor>{`${missingSummary(setup.missing)}.`}</ui.Text>
+        <ui.Button key="setup-run" variant="primary" label="Finish setup" onPress={() => void runSetup($)} />
+        <ui.Button key="setup-later" label="Later" onPress={() => void hide()} />
+      </ui.Box>
+    )
+    const withSetup = (band: ReturnType<typeof ui.Box>) =>
+      setupRow ? (
+        <ui.Box flexDirection="column" gap={1}>
+          {setupRow}
+          {band}
+        </ui.Box>
+      ) : (
+        band
+      )
+    if (!shown) return setupRow ?? next(e)
 
     const usage = await read($, usageAtom)
     const rtk = await read($, rtkAtom)
@@ -363,7 +513,7 @@ export const register: Register = on => {
       const { Box, Text, Raster } = $.ui.resolve(e)
       const art = characterRaster(mood)
       const barWidth = Math.max(10, e.props.bodyColumns - WIDTH - 8)
-      return (
+      return withSetup(
         <Box flexDirection="row" alignItems="flex-end" gap={2}>
           <Box flexDirection="column" flexGrow={1} borderStyle="round" borderDimColor paddingX={1}>
             <Box flexDirection="row" justifyContent="space-between">
@@ -387,7 +537,7 @@ export const register: Register = on => {
             </Box>
           </Box>
           <Raster key="yemeni" columns={art.columns} rows={art.rows} cells={art.cells} />
-        </Box>
+        </Box>,
       )
     }
 
@@ -397,7 +547,7 @@ export const register: Register = on => {
 
     // Layout A: the band is a framed card; he stands on his own to its right,
     // feet level with the band's bottom edge, right above the prompt.
-    return (
+    return withSetup(
       <Box flexDirection="row" alignItems="flex-end" gap={2}>
         <Box flexDirection="row" alignItems="center" gap={2} flexGrow={1} flexShrink={1} borderStyle="round" borderDimColor paddingX={1}>
           <Box flexDirection="column" flexGrow={1} flexShrink={1} gap={1}>
@@ -432,7 +582,7 @@ export const register: Register = on => {
             isInteractive
           />
         ) : null}
-      </Box>
+      </Box>,
     )
   })
 }

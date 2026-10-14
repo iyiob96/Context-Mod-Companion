@@ -2,6 +2,8 @@ import { expect, test } from 'claude-code/testing'
 import type { Engine } from 'claude-code/testing'
 import type { On, SessionUsage } from 'claude-code'
 
+declare const setTimeout: (fn: () => void, ms: number) => unknown
+
 const PLUGIN = 'yemeni-context-band'
 
 function usage(percent: number): SessionUsage {
@@ -45,6 +47,8 @@ function engineBottom(on: On, percent: () => number) {
   on('process.run', () => ({ value: { exitCode: 0, stdout: RTK, stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }))
   on('prompt.submit', ($, e) => ({ text: e.text }))
   on('session.measure', ($, e) => ({ changed: e.changed }))
+  on('env.get', () => ({ value: undefined }))
+  on('fs.list', () => ({ deny: 'none' }))
   on('ui.render', ($, e) => { const { Text } = $.ui.resolve(e); return <Text>engine</Text> })
 }
 
@@ -69,6 +73,14 @@ test('band stays hidden until the first prompt, then shows context and RTK', asy
 
   await $.prompt.submit({ text: 'hi', wait: false, origin: { kind: 'user' } } as never)
   await measure($, pct)
+  // RTK's numbers load in the background after the prompt
+  for (let i = 0; i < 50; i++) {
+    const probe = await $.ui.mount({ ...BAND, surface: 'desktop' })
+    const done = await probe.find({ type: 'Text', text: /RTK 20/ })
+    await probe.unmount()
+    if (done) break
+    await new Promise<void>(r => setTimeout(() => r(), 10))
+  }
 
   for (const surface of ['desktop', 'terminal'] as const) {
     const ui = await $.ui.mount({ ...BAND, surface })

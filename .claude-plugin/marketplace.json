@@ -1,10 +1,16 @@
 {
   "name": "context-mod-companion",
-  "description": "Context window band with RTK savings and a pixel Yemeni companion for Claude Code, plus a kit that adds Matt Pocock's skills",
+  "description": "Context window band with RTK savings and a pixel Yemeni companion for Claude Code; its one-click setup adds RTK and Matt Pocock's skills",
   "owner": { "name": "Ibrahim" },
-  "allowCrossMarketplaceDependenciesOn": ["claude-plugins-official"],
   "plugins": [
-    { "name": "yemeni-context-band", "source": "./" },
-    { "name": "context-companion-kit", "source": "./bundle" }
+    {
+      "name": "yemeni-context-band",
+      "source": "./",
+      "description": "Context window band above the prompt with RTK token savings and a clickable pixel Yemeni companion; a Finish setup button installs RTK and Matt Pocock's skills",
+      "homepage": "https://github.com/iyiob96/Context-Mod-Companion",
+      "repository": "https://github.com/iyiob96/Context-Mod-Companion",
+      "license": "MIT",
+      "category": "mod"
+    }
   ]
 }
