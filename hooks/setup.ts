@@ -6,7 +6,7 @@
 
 import type { SetupStep } from '../types'
 
-export const SETUP_COMMAND = 'companion-setup'
+export const SETUP_COMMAND = 'yemeni'
 
 export const STEP_LABEL: Record<SetupStep, string> = {
   rtk: 'install RTK',
@@ -32,7 +32,7 @@ export const RTK_INSTALL: Record<'windows' | 'mac' | 'linux', string[]> = {
 }
 
 export const RTK_MANUAL = [
-  'Install RTK yourself, then run /companion-setup again:',
+  'Install RTK yourself, then run /yemeni again:',
   '- Windows: `winget install rtk-ai.rtk`',
   '- macOS: `brew install rtk`',
   '- Linux: `curl -fsSL https://raw.githubusercontent.com/rtk-ai/rtk/refs/heads/master/install.sh | sh`',

@@ -38,11 +38,11 @@ Then restart Claude Code.
 /plugin install yemeni-context-band --marketplace iyiob96/Context-Mod-Companion
 ```
 
-Then click **Finish setup** in the band, or run `/companion-setup`.
+Then click **Finish setup** in the band, or run `/yemeni`.
 
 ## What setup does
 
-The band checks four things each time a session starts. If any is missing, it shows a **Finish setup** row; `/companion-setup` does the same from the prompt.
+The band checks four things each time a session starts. If any is missing, it shows a **Finish setup** row; `/yemeni` does the same from the prompt.
 
 | Step | How |
 | --- | --- |

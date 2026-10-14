@@ -97,10 +97,10 @@ test('a machine that is already set up shows no setup row', async ($, on) => {
   await ui.unmount()
 })
 
-test('/companion-setup only does what is missing', async ($, on) => {
+test('/yemeni only does what is missing', async ($, on) => {
   const m: Machine = { hasRtk: true, hooked: true, claudeMd: '', hasMatt: true, ran: [] }
   machine(on, m)
-  const result = (await $.command.run({ command: 'companion-setup', args: '' } as never)) as { text?: string }
+  const result = (await $.command.run({ command: 'yemeni', args: '' } as never)) as { text?: string }
   expect(String(result.text)).toContain('Added the Bash-only line')
   expect(m.ran.some(c => c.startsWith('winget') || c.includes('plugin install'))).toBe(false)
 })
