@@ -481,16 +481,20 @@ export const register: Register = on => {
         <ui.Button key="setup-later" label="Later" onPress={() => void hide()} />
       </ui.Box>
     )
+    // Other mods share this slot: draw theirs below ours instead of replacing it.
+    // next(e) rejects only when nothing answers beneath (the test harness).
+    const below = await next(e).catch(() => undefined)
     const withSetup = (band: ReturnType<typeof ui.Box>) =>
-      setupRow ? (
+      setupRow || below ? (
         <ui.Box flexDirection="column" gap={1}>
           {setupRow}
           {band}
+          {below}
         </ui.Box>
       ) : (
         band
       )
-    if (!shown) return setupRow ?? next(e)
+    if (!shown) return setupRow ? withSetup(null) : below
 
     const usage = await read($, usageAtom)
     const rtk = await read($, rtkAtom)
