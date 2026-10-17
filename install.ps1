@@ -76,7 +76,10 @@ Step 'Bash-only line in CLAUDE.md'
 $configDir = if ($env:CLAUDE_CONFIG_DIR) { $env:CLAUDE_CONFIG_DIR } else { "$env:USERPROFILE\.claude" }
 $md = Join-Path $configDir 'CLAUDE.md'
 $text = if (Test-Path $md) { [IO.File]::ReadAllText($md) } else { '' }
-if ($text.Contains('so RTK can compress their output')) { Ok 'already there' }
+# Also look in files CLAUDE.md imports with `@file` lines.
+$imported = [regex]::Matches($text, '(?m)^@(\S+)\s*$') | ForEach-Object { Join-Path $configDir $_.Groups[1].Value } |
+    Where-Object { Test-Path $_ } | ForEach-Object { [IO.File]::ReadAllText($_) }
+if (($text + ($imported -join "`n")).Contains('so RTK can compress their output')) { Ok 'already there' }
 else {
     New-Item -ItemType Directory -Force $configDir | Out-Null
     $sep = if ($text -eq '' -or $text.EndsWith("`n`n")) { '' } elseif ($text.EndsWith("`n")) { "`n" } else { "`n`n" }

@@ -74,7 +74,16 @@ ok 'rtk init -g'
 step 'Bash-only line in CLAUDE.md'
 CONFIG_DIR=${CLAUDE_CONFIG_DIR:-$HOME/.claude}
 MD="$CONFIG_DIR/CLAUDE.md"
-if [ -f "$MD" ] && grep -q 'so RTK can compress their output' "$MD"; then ok 'already there'
+# Also look in files CLAUDE.md imports with `@file` lines.
+has_bash_line() {
+  [ -f "$MD" ] || return 1
+  grep -q 'so RTK can compress their output' "$MD" && return 0
+  for f in $(sed -n 's/^@\([^[:space:]]*\)[[:space:]]*$/\1/p' "$MD"); do
+    grep -qs 'so RTK can compress their output' "$CONFIG_DIR/$f" && return 0
+  done
+  return 1
+}
+if has_bash_line; then ok 'already there'
 else
   mkdir -p "$CONFIG_DIR"
   if [ -s "$MD" ]; then printf '\n%s\n' "$BASH_LINE" >> "$MD"; else printf '%s\n' "$BASH_LINE" > "$MD"; fi

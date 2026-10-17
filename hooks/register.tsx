@@ -165,6 +165,17 @@ async function readTextQuiet($: EngineInterface, path: string): Promise<string |
   }
 }
 
+// CLAUDE.md plus the files it imports with `@file` lines, as Claude Code reads it.
+// shortcut: follows one level of imports (Claude Code follows up to five), upgrade if nested imports show up.
+async function claudeMdWithImports($: EngineInterface, path: string): Promise<string | null> {
+  const md = await readTextQuiet($, path)
+  if (md === null) return null
+  const dir = path.replace(/[\\/][^\\/]*$/, '')
+  const imports = [...md.matchAll(/^@(\S+)\s*$/gm)].map(m => (/^([a-zA-Z]:)?[\\/]/.test(m[1]) ? m[1] : `${dir}/${m[1]}`))
+  const texts = await Promise.all(imports.map(f => readTextQuiet($, f)))
+  return [md, ...texts].filter(t => t !== null).join('\n')
+}
+
 async function checkSetup($: EngineInterface): Promise<SetupStep[]> {
   const missing: SetupStep[] = []
   const rtk = await findRtk($)
@@ -174,7 +185,7 @@ async function checkSetup($: EngineInterface): Promise<SetupStep[]> {
     if (!shown || !isHooked(shown.stdout)) missing.push('hook')
   }
   const md = await claudeMdPath($)
-  if (!hasBashLine(md ? await readTextQuiet($, md) : null)) missing.push('bash')
+  if (!hasBashLine(md ? await claudeMdWithImports($, md) : null)) missing.push('bash')
   const list = await runQuiet($, [await claudeBin($), 'plugin', 'list', '--json'])
   if (list && list.exitCode === 0 && !isEnabled(list.stdout, MATT_ID)) missing.push('matt')
   return missing
@@ -201,7 +212,7 @@ async function doStep($: EngineInterface, step: SetupStep): Promise<string> {
     const path = await claudeMdPath($)
     if (!path) return '✗ Could not find your home folder for CLAUDE.md'
     const md = (await readTextQuiet($, path)) ?? ''
-    if (!hasBashLine(md)) await $.fs.write(path, withBashLine(md))
+    if (!hasBashLine(await claudeMdWithImports($, path))) await $.fs.write(path, withBashLine(md))
     return `✓ Added the Bash-only line to ${path}`
   }
   const claude = await claudeBin($)
