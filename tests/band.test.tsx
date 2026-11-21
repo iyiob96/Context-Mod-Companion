@@ -20,6 +20,7 @@ function usage(percent: number): SessionUsage {
         categories: [
           { name: 'System prompt', tokens: 4_200, color: 'promptBorder', isDeferred: false, kind: 'used' },
           { name: 'MCP server instructions', tokens: 1_000, color: 'permission', isDeferred: false, kind: 'used' },
+          { name: 'Custom agents', tokens: 900, color: 'permission', isDeferred: false, kind: 'used' },
           { name: 'Messages', tokens: tokens - 4_200, color: 'permission', isDeferred: false, kind: 'used' },
           { name: 'Free space', tokens: window - tokens, color: 'inactive', isDeferred: false, kind: 'free' },
         ],
@@ -152,6 +153,7 @@ test('legend shortens long names, and the audit buttons start their prompts', as
     const ui = await $.ui.mount({ ...BAND, surface })
     expect(await ui.find({ type: 'Text', text: /mcp ins\./ })).toBeDefined()
     expect(await ui.find({ type: 'Text', text: /mcp server instructions/ })).toBeUndefined()
+    expect(await ui.find({ type: 'Text', text: /^agents( 900)?$/ })).toBeDefined()
     await ui.press({ key: 'auk-audit' })
     await ui.press({ key: 'security-audit' })
     await ui.unmount()
@@ -159,4 +161,53 @@ test('legend shortens long names, and the audit buttons start their prompts', as
   expect(prompts).toHaveLength(4)
   expect(prompts[0]).toContain('auk-design-auditor')
   expect(prompts[1]).toContain('security-audit skill')
+})
+
+test('header shows the next prayer; legend says agents; Ultracave runs the caveman skill', async ($, on) => {
+  const ran: string[] = []
+  const fetched: string[] = []
+  on('session.usage', () => ({ value: usage(9) }))
+  on('process.run', () => ({ value: { exitCode: 0, stdout: RTK, stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }))
+  on('prompt.submit', ($, e) => ({ text: e.text }))
+  on('session.measure', ($, e) => ({ changed: e.changed }))
+  on('env.get', ($, e) => ({ value: e.name === 'TZ' ? 'Asia/Aden' : undefined }))
+  on('fs.list', () => ({ deny: 'none' }))
+  on('fs.read', () => ({ deny: 'none' }))
+  on('session.start', ($, e) => ({ cwd: e.cwd }))
+  on('clock.every', () => ({ value: undefined }))
+  on('clock.now', () => ({ value: Date.UTC(2026, 10, 21, 9, 0) }))
+  on('command.register', ($, e) => ({ value: e }) as never)
+  on('command.list', () => ({ value: [{ name: 'caveman:ultracave', description: '', source: 'plugin' }] }) as never)
+  on('command.run', ($, e) => {
+    ran.push(e.command)
+    return { text: 'ok' }
+  })
+  on('http.fetch', ($, e) => {
+    fetched.push(e.url)
+    const timings = { Fajr: '00:01', Dhuhr: '23:57', Asr: '23:58', Maghrib: '23:59', Isha: '23:59' }
+    return { value: { status: 200, ok: true, headers: {}, text: JSON.stringify({ data: { timings } }) } } as never
+  })
+  on('ui.render', ($, e) => {
+    const { Text } = $.ui.resolve(e)
+    return <Text>engine</Text>
+  })
+
+  await $.session.start({ cwd: 'C:/work', source: 'startup' } as never)
+  await $.prompt.submit({ text: 'hi', wait: false, origin: { kind: 'user' } } as never)
+  await measure($, 9)
+  for (let i = 0; i < 50 && !fetched.length; i++) await new Promise<void>(r => setTimeout(() => r(), 10))
+  expect(fetched[0]).toContain('address=Aden&method=4')
+
+  for (const surface of ['desktop', 'terminal'] as const) {
+    let ui = await $.ui.mount({ ...BAND, surface })
+    for (let i = 0; i < 50 && !(await ui.find({ type: 'Text', text: /🕌/ })); i++) {
+      await ui.unmount()
+      await new Promise<void>(r => setTimeout(() => r(), 10))
+      ui = await $.ui.mount({ ...BAND, surface })
+    }
+    expect(await ui.find({ type: 'Text', text: /🕌 (Fajr|Dhuhr|Asr|Maghrib|Isha) \d\d:\d\d · in / })).toBeDefined()
+    await ui.press({ key: 'ultracave' })
+    await ui.unmount()
+  }
+  expect(ran).toEqual(['caveman:ultracave', 'caveman:ultracave'])
 })

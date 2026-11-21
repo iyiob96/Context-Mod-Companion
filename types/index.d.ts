@@ -11,7 +11,15 @@ export type Usage = {
 
 export type Rtk = { total: number; session: number; avgPct: number; commands: number }
 
-export type SetupStep = 'rtk' | 'hook' | 'bash' | 'matt'
+// Today's prayer times for a city, as fetched; refetched when the date changes.
+export type Prayer = {
+  date: string
+  timeZone: string
+  city: string
+  timings: Record<'Fajr' | 'Dhuhr' | 'Asr' | 'Maghrib' | 'Isha', string>
+}
+
+export type SetupStep ='rtk' | 'hook' | 'bash' | 'matt'
 
 export type Setup = {
   missing: SetupStep[]
@@ -28,6 +36,7 @@ declare module 'claude-code' {
       rtk: Rtk | null
       rtkBaseline: number | null
       setup: Setup | null
+      prayer: Prayer | null
     }
   }
 }

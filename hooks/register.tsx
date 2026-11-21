@@ -1,7 +1,8 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register, RenderElement } from 'claude-code'
 
-import type { Rtk, Segment, Setup, SetupStep, Usage } from '../types'
+import type { Prayer, Rtk, Segment, Setup, SetupStep, Usage } from '../types'
+import { cityOf, countdown, localNow, nextPrayer, parseTimings, timingsUrl, userTimeZone } from './prayer'
 import { characterGrid, EYES, HEIGHT, PALETTE, SKIN, WIDTH } from './character'
 import type { Mood } from './character'
 import {
@@ -25,6 +26,7 @@ const isShown = atom({ plugin: 'yemeni-context-band', key: 'isShown' } as const,
 const usageAtom = atom({ plugin: 'yemeni-context-band', key: 'usage' } as const, null)
 const rtkAtom = atom({ plugin: 'yemeni-context-band', key: 'rtk' } as const, null)
 const rtkBaseline = atom({ plugin: 'yemeni-context-band', key: 'rtkBaseline' } as const, null)
+const prayerAtom = atom({ plugin: 'yemeni-context-band', key: 'prayer' } as const, null as Prayer | null)
 const setupAtom = atom({ plugin: 'yemeni-context-band', key: 'setup' } as const, null as Setup | null)
 
 const ACCENT = '#e0875a'
@@ -50,7 +52,7 @@ function colorOf(s: Segment, i: number): string {
 }
 
 // Legend labels as /context names them, lowercased, a few shortened to fit five a row.
-const SHORT_LABEL: Record<string, string> = { 'mcp server instructions': 'mcp ins.' }
+const SHORT_LABEL: Record<string, string> = { 'mcp server instructions': 'mcp ins.', 'custom agents': 'agents' }
 const legendLabel = (name: string) => SHORT_LABEL[name.toLowerCase()] ?? name.toLowerCase()
 
 const AUK_AUDIT_PROMPT =
@@ -111,6 +113,20 @@ async function refreshRtk($: EngineInterface): Promise<void> {
 }
 
 const quietly = (p: Promise<unknown>) => p.catch(() => undefined)
+
+// Fetches today's prayer times once per day (and when the city changes).
+async function refreshPrayer($: EngineInterface): Promise<void> {
+  // TZ overrides the machine's timezone (an IANA name such as Asia/Aden).
+  const tz = (await $.env.get('TZ')) || userTimeZone()
+  const city = tz ? cityOf(tz) : null
+  if (!tz || !city) return
+  const { date } = localNow(tz, await $.clock.now())
+  const have = await read($, prayerAtom)
+  if (have?.date === date && have.timeZone === tz) return
+  const { ok, text } = await $.http.fetch(timingsUrl(date, city))
+  const timings = ok ? parseTimings(text) : null
+  if (timings) await update($, prayerAtom, () => ({ date, timeZone: tz, city, timings }))
+}
 
 // ---------- setup (RTK, its hook, the Bash line, Matt Pocock's skills) ----------
 
@@ -417,7 +433,6 @@ function textBar(usage: Usage, width: number): { color: string; text: string }[]
 
 // ---------- hooks ----------
 
-let hasAgentsInfo = false
 
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
@@ -426,6 +441,16 @@ export const register: Register = on => {
       name: SETUP_COMMAND,
       description: "Set up RTK, its hook, the Bash-only CLAUDE.md line and Matt Pocock's skills",
     })
+    void quietly(refreshPrayer($))
+    // Keeps the prayer countdown current and picks up a new day's times.
+    try {
+      $.clock.every(60_000, () => {
+        $.ui.invalidate('ui.render')
+        void quietly(refreshPrayer($))
+      })
+    } catch {
+      // no timer here: the countdown updates with each redraw instead
+    }
     void quietly(
       (async () => {
         const missing = await checkSetup($)
@@ -519,7 +544,9 @@ export const register: Register = on => {
     if (!shown) return setupRow ? withSetup(null) : (below ?? <ui.Box />)
 
     // Toggles savvy-flow's agents panel (bare /agents-info opens or closes it); drawn only where savvy-progress serves it.
-    hasAgentsInfo ||= (await $.command.list().catch(() => [])).some(c => c.name === 'agents-info')
+    const commands = await $.command.list().catch(() => [])
+    const hasAgentsInfo = commands.some(c => c.name === 'agents-info')
+    const ultracave = commands.find(c => c.name === 'ultracave' || c.name.endsWith(':ultracave'))?.name
     const agentsButton = hasAgentsInfo ? (
       <ui.Button
         key="agents"
@@ -528,11 +555,12 @@ export const register: Register = on => {
       />
     ) : null
 
-    // Each starts a turn: the prompt names what to run and asks before anything big.
-    const auditButtons = (
+    // The audits start a turn whose prompt asks before anything big; Ultracave runs the caveman skill.
+    const actionButtons = (
       <ui.Box flexDirection="row" gap={1}>
         <ui.Button key="auk-audit" label="AUK design audit" onPress={() => void $.prompt.submit({ text: AUK_AUDIT_PROMPT })} />
         <ui.Button key="security-audit" label="Security audit" onPress={() => void $.prompt.submit({ text: SECURITY_AUDIT_PROMPT })} />
+        {ultracave ? <ui.Button key="ultracave" label="Ultracave" onPress={() => void $.command.run({ command: ultracave })} /> : null}
       </ui.Box>
     )
 
@@ -553,16 +581,21 @@ export const register: Register = on => {
 
     const rtkTotal = rtk ? fmt(rtk.total) : '–'
 
+    const prayer = await read($, prayerAtom)
+    const upcoming = prayer ? nextPrayer(prayer.timings, localNow(prayer.timeZone, await $.clock.now()).minutes) : null
+    const prayerText = upcoming ? `🕌 ${upcoming.name} ${upcoming.time} · in ${countdown(upcoming.inMinutes)}` : null
+
     if (e.surface === 'terminal') {
       const { Box, Text, Raster } = $.ui.resolve(e)
       const art = characterRaster(mood)
-      const barWidth = Math.max(10, e.props.bodyColumns - WIDTH - 8)
+      const barWidth = Math.max(10, e.props.bodyColumns - WIDTH - 10)
       return withSetup(
-        <Box flexDirection="row" alignItems="flex-end" gap={2}>
-          <Box flexDirection="column" flexGrow={1} borderStyle="round" borderDimColor paddingX={1}>
-            <Box flexDirection="row" gap={1}>
+        <Box flexDirection="row" alignItems="stretch" gap={1} borderStyle="round" borderDimColor paddingX={1}>
+          <Box flexDirection="column" flexGrow={1} flexShrink={1}>
+            <Box flexDirection="row" gap={2}>
               <Text color={ACCENT} bold>◆ context</Text>
               <Text color={RTK} bold>{`⚡ RTK ${rtkTotal}`}</Text>
+              {prayerText ? <Text dimColor>{prayerText}</Text> : null}
               <Text dimColor>{headline}</Text>
               <Text bold color={ACCENT}>{`[${Math.round(pct)}%]`}</Text>
             </Box>
@@ -573,13 +606,14 @@ export const register: Register = on => {
               {legend.map(({ s, color }) => (
                 <Box flexDirection="row" gap={1} width="20%">
                   <Text color={color}>■</Text>
-                  <Text dimColor wrap="truncate">{`${legendLabel(s.name)} ${fmt(s.tokens)}`}</Text>
+                  <Text dimColor>{`${legendLabel(s.name)} ${fmt(s.tokens)}`}</Text>
                 </Box>
               ))}
             </Box>
-            {auditButtons}
+            {actionButtons}
           </Box>
-          <Box flexDirection="column" alignItems="center">
+          <Box width={1} backgroundColor="#555555" />
+          <Box flexDirection="column" alignItems="center" justifyContent="flex-end">
             <Raster key="yemeni" columns={art.columns} rows={art.rows} cells={art.cells} />
             {agentsButton}
           </Box>
@@ -591,19 +625,21 @@ export const register: Register = on => {
     const { Box, Text } = table
     const Svg = 'Svg' in table ? table.Svg : undefined
 
-    // Layout A: the band is a framed card; he stands on his own to its right,
-    // feet level with the band's bottom edge, right above the prompt.
+    // One framed card: the context details on the left, a divider, then the
+    // companion standing with the Agents button under him. Every header item
+    // shares one text size.
     return withSetup(
-      <Box flexDirection="row" alignItems="flex-end" gap={2}>
-        <Box flexDirection="column" flexGrow={1} flexShrink={1} gap={1} borderStyle="round" borderDimColor paddingX={1}>
+      <Box flexDirection="row" alignItems="stretch" gap={2} borderStyle="round" borderDimColor paddingX={1}>
+        <Box flexDirection="column" flexGrow={1} flexShrink={1} gap={1}>
           <Box flexDirection="row" justifyContent="space-between" alignItems="center">
             <Box flexDirection="row" gap={2} alignItems="center">
-              <Text color={ACCENT} bold>◆ context</Text>
-              <Text bold color={RTK}>{`⚡ RTK ${rtkTotal}`}</Text>
+              <Text size="body" weight="medium" color={ACCENT}>◆ context</Text>
+              <Text size="body" weight="medium" color={RTK}>{`⚡ RTK ${rtkTotal}`}</Text>
+              {prayerText ? <Text size="body" dimColor>{prayerText}</Text> : null}
             </Box>
             <Box flexDirection="row" gap={1} alignItems="center">
-              <Text dimColor>{headline}</Text>
-              <Text bold color="#1b1b1b" backgroundColor={left > 40 ? '#9be3a0' : left > 30 ? '#f2c14e' : '#f07a6a'}>
+              <Text size="body" dimColor>{headline}</Text>
+              <Text size="body" weight="medium" color="#1b1b1b" backgroundColor={left > 40 ? '#9be3a0' : left > 30 ? '#f2c14e' : '#f07a6a'}>
                 {` ${Math.round(pct)}% `}
               </Text>
             </Box>
@@ -613,14 +649,15 @@ export const register: Register = on => {
             {legend.map(({ s, color }) => (
               <Box flexDirection="row" gap={1} width="20%">
                 <Text size="footnote" color={color}>■</Text>
-                <Text size="footnote" dimColor wrap="truncate">{legendLabel(s.name)}</Text>
-                <Text size="footnote" bold>{fmt(s.tokens)}</Text>
+                <Text size="footnote" dimColor>{legendLabel(s.name)}</Text>
+                <Text size="footnote" weight="medium">{fmt(s.tokens)}</Text>
               </Box>
             ))}
           </Box>
-          {auditButtons}
+          {actionButtons}
         </Box>
-        <Box flexDirection="column" alignItems="center">
+        <Box width={1} backgroundColor="#555555" />
+        <Box flexDirection="column" alignItems="center" justifyContent="flex-end">
           {Svg ? (
             <Svg
               source={characterSvg(mood)}
