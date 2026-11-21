@@ -62,3 +62,18 @@ export function nextPrayer(t: Timings, minutes: number): { name: PrayerName; tim
 }
 
 export const countdown = (m: number) => (m >= 60 ? `${Math.floor(m / 60)}h ${m % 60}m` : `${m}m`)
+
+// The reminder runs from 2 minutes before a prayer until 15 minutes after it.
+export const REMIND_BEFORE = 2
+export const REMIND_AFTER = 15
+
+export type Reminder = { name: PrayerName; time: string; text: string }
+
+export function reminderOf(t: Timings, minutes: number): Reminder | null {
+  for (const name of PRAYERS) {
+    const since = (minutes - toMinutes(t[name]) + 1440) % 1440
+    if (since <= REMIND_AFTER) return { name, time: t[name], text: since === 0 ? `${name} now` : `${name} now · ${countdown(since)} ago` }
+    if (1440 - since <= REMIND_BEFORE) return { name, time: t[name], text: `${name} ${t[name]} · in ${countdown(1440 - since)}` }
+  }
+  return null
+}

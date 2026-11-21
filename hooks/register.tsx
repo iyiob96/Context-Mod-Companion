@@ -2,9 +2,9 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register, RenderElement } from 'claude-code'
 
 import type { Prayer, Rtk, Segment, Setup, SetupStep, Usage } from '../types'
-import { cityOf, countdown, localNow, nextPrayer, parseTimings, timingsUrl, userTimeZone } from './prayer'
+import { cityOf, countdown, localNow, nextPrayer, parseTimings, reminderOf, timingsUrl, userTimeZone } from './prayer'
 import { characterGrid, EYES, HEIGHT, PALETTE, SKIN, WIDTH } from './character'
-import type { Mood } from './character'
+import type { Mood, Pose } from './character'
 import {
   hasBashLine,
   hasMarketplace,
@@ -293,6 +293,7 @@ const GLYPHS: Record<string, string[]> = {
   a: ['...', '.##', '#.#', '#.#', '.##'],
   l: ['#', '#', '#', '#', '#'],
   m: ['.....', '####.', '#.#.#', '#.#.#', '#.#.#'],
+  h: ['#..', '#..', '##.', '#.#', '#.#'],
 }
 
 function pixelText(text: string, x0: number, y0: number, fill: string): { svg: string; width: number } {
@@ -307,19 +308,21 @@ function pixelText(text: string, x0: number, y0: number, fill: string): { svg: s
   return { svg: out.join(''), width: x - x0 - 1 }
 }
 
-// Rows of headroom above him for the bubble.
 // The bubble pops up over his turban while he waves, so no space is kept above him.
 const HEADROOM = 0
 const GREET = '2.6s'
 
-function bubbleSvg(): string {
-  const text = pixelText('Salam', 0, 0, '#9b1b1e')
+// 'greet': hidden until he's clicked. 'alert': always up, bouncing, its body flashing gold.
+function bubbleSvg(word: string, mode: 'greet' | 'alert'): string {
+  const text = pixelText(word, 0, 0, '#9b1b1e')
   const w = text.width + 4 // 1px border + 1px padding each side
   const x0 = Math.max(0, Math.floor((WIDTH - w) / 2))
   const ink = '#1a1a1a'
   const parts = [
     // body with clipped corners, then border
-    `<rect x="${x0 + 1}" y="1" width="${w - 2}" height="7" fill="#fbf7ee"/>`,
+    mode === 'alert'
+      ? `<rect x="${x0 + 1}" y="1" width="${w - 2}" height="7" fill="#fbf7ee"><animate attributeName="fill" values="#fbf7ee;${GOLD};#fbf7ee" dur="1s" calcMode="discrete" repeatCount="indefinite"/></rect>`
+      : `<rect x="${x0 + 1}" y="1" width="${w - 2}" height="7" fill="#fbf7ee"/>`,
     `<rect x="${x0 + 1}" y="0" width="${w - 2}" height="1" fill="${ink}"/>`,
     `<rect x="${x0 + 1}" y="8" width="${w - 2}" height="1" fill="${ink}"/>`,
     `<rect x="${x0}" y="1" width="1" height="7" fill="${ink}"/>`,
@@ -332,12 +335,16 @@ function bubbleSvg(): string {
     `<rect x="${x0 + 8}" y="10" width="2" height="1" fill="${ink}"/>`,
     `<g transform="translate(${x0 + 2} 2)">${text.svg}</g>`,
   ]
+  if (mode === 'alert')
+    return `<g>${parts.join('')}<animateTransform attributeName="transform" type="translate" values="0 0;0 -1;0 0" dur="0.9s" repeatCount="indefinite"/></g>`
   return `<g visibility="hidden">${parts.join('')}<set attributeName="visibility" to="visible" begin="hit.click" dur="${GREET}"/><animateTransform attributeName="transform" type="translate" values="0 2;0 0" dur="0.15s" begin="hit.click" fill="freeze"/></g>`
 }
 
 // Clicking him (desktop draws the Svg in a script-less frame, where SMIL still
 // runs) swaps in the waving pose and pops the bubble for a moment; no state.
-function characterSvg(mood: Mood): string {
+// Around prayer time (`salah`) he raises both hands under a flashing "Salah"
+// bubble with a gold glow behind him, and clicking does nothing.
+function characterSvg(mood: Mood, salah = false): string {
   const blink =
     mood === 'devastated'
       ? ''
@@ -354,7 +361,11 @@ function characterSvg(mood: Mood): string {
   const rest = `<g>${gridRects(characterGrid(mood, 'rest'))}${blink}<set attributeName="visibility" to="hidden" begin="hit.click" dur="${GREET}"/></g>`
   const wave = `<g visibility="hidden">${gridRects(characterGrid(mood, 'wave'))}<set attributeName="visibility" to="visible" begin="hit.click" dur="${GREET}"/></g>`
   const H = HEIGHT + HEADROOM
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${WIDTH} ${H}" width="${WIDTH * SCALE}" height="${H * SCALE}" shape-rendering="crispEdges"><g transform="translate(0 ${HEADROOM})"><g>${bob}${rest}${wave}</g></g>${bubbleSvg()}<rect id="hit" x="0" y="${HEADROOM}" width="${WIDTH}" height="${HEIGHT}" fill="transparent" pointer-events="all" style="cursor:pointer"><title>Say salam</title></rect></svg>`
+  if (salah) {
+    const glow = `<ellipse cx="${WIDTH / 2}" cy="${H / 2 + 2}" rx="10" ry="16" fill="${GOLD}"><animate attributeName="opacity" values="0.55;0" dur="1.4s" repeatCount="indefinite"/><animate attributeName="rx" values="9;12" dur="1.4s" repeatCount="indefinite"/><animate attributeName="ry" values="15;20" dur="1.4s" repeatCount="indefinite"/></ellipse>`
+    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${WIDTH} ${H}" width="${WIDTH * SCALE}" height="${H * SCALE}" shape-rendering="crispEdges">${glow}<g>${gridRects(characterGrid(mood, 'pray'))}${blink}</g>${bubbleSvg('Salah', 'alert')}</svg>`
+  }
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${WIDTH} ${H}" width="${WIDTH * SCALE}" height="${H * SCALE}" shape-rendering="crispEdges"><g transform="translate(0 ${HEADROOM})"><g>${bob}${rest}${wave}</g></g>${bubbleSvg('Salam', 'greet')}<rect id="hit" x="0" y="${HEADROOM}" width="${WIDTH}" height="${HEIGHT}" fill="transparent" pointer-events="all" style="cursor:pointer"><title>Say salam</title></rect></svg>`
 }
 
 const swatchSvg = (color: string) =>
@@ -399,8 +410,8 @@ function barSvg(usage: Usage): string {
 }
 
 // Terminal: one Raster of half blocks, two pixel rows per cell.
-function characterRaster(mood: Mood): { cells: string; columns: number; rows: number } {
-  const grid = characterGrid(mood)
+function characterRaster(mood: Mood, pose: Pose = 'rest'): { cells: string; columns: number; rows: number } {
+  const grid = characterGrid(mood, pose)
   const rows = Math.ceil(HEIGHT / 2)
   const words = new Uint32Array(WIDTH * rows * 3)
   const DEFAULT = 0x01000000
@@ -600,12 +611,15 @@ export const register: Register = on => {
     const rtkTotal = rtk ? fmt(rtk.total) : '–'
 
     const prayer = await read($, prayerAtom)
-    const upcoming = prayer ? nextPrayer(prayer.timings, localNow(prayer.timeZone, await $.clock.now()).minutes) : null
-    const prayerText = upcoming ? `🕌 ${upcoming.name} ${upcoming.time} · in ${countdown(upcoming.inMinutes)}` : null
+    const nowMinutes = prayer ? localNow(prayer.timeZone, await $.clock.now()).minutes : 0
+    const upcoming = prayer ? nextPrayer(prayer.timings, nowMinutes) : null
+    // From 2 minutes before a prayer to 15 after it, the chibi calls "Salah" and the time turns into a gold chip.
+    const salah = prayer ? reminderOf(prayer.timings, nowMinutes) : null
+    const prayerText = salah ? `🕌 ${salah.text}` : upcoming ? `🕌 ${upcoming.name} ${upcoming.time} · in ${countdown(upcoming.inMinutes)}` : null
 
     if (e.surface === 'terminal') {
       const { Box, Text, Raster } = $.ui.resolve(e)
-      const art = characterRaster(mood)
+      const art = characterRaster(mood, salah ? 'pray' : 'rest')
       const barWidth = Math.max(10, e.props.bodyColumns - WIDTH - 10)
       return withSetup(
         <Box flexDirection="row" alignItems="stretch" gap={1} borderStyle="round" borderDimColor paddingX={1}>
@@ -613,7 +627,9 @@ export const register: Register = on => {
             <Box flexDirection="row" gap={2}>
               <Text color={ACCENT} bold>◆ Context</Text>
               <Text color={RTK} bold>{`⚡ RTK ${rtkTotal}`}</Text>
-              {prayerText ? <Text color={GOLD} bold>{prayerText}</Text> : null}
+              {prayerText ? (
+                salah ? <Text color="#1a1210" backgroundColor={GOLD} bold>{` ${prayerText} `}</Text> : <Text color={GOLD} bold>{prayerText}</Text>
+              ) : null}
               <Text dimColor>{headline}</Text>
               <Text bold color={ACCENT}>{`[${Math.round(pct)}%]`}</Text>
             </Box>
@@ -641,6 +657,7 @@ export const register: Register = on => {
     const table = $.ui.resolve(e)
     const { Box, Text } = table
     const Svg = 'Svg' in table ? table.Svg : undefined
+    const goldChip = badgeSvg(prayerText ?? '', GOLD)
     const badge = badgeSvg(`${Math.round(pct)}%`, left > 40 ? '#9be3a0' : left > 30 ? '#f2c14e' : '#f07a6a')
 
     // One framed card: the context details on the left, a divider, then the
@@ -653,7 +670,11 @@ export const register: Register = on => {
             <Box flexDirection="row" gap={2} alignItems="center">
               <Text size="body" weight="semibold" color={ACCENT}>◆ Context</Text>
               <Text size="body" weight="semibold" color={RTK}>{`⚡ RTK ${rtkTotal}`}</Text>
-              {prayerText ? <Text size="body" weight="semibold" color={GOLD}>{prayerText}</Text> : null}
+              {prayerText && salah && Svg ? (
+                <Svg source={goldChip.source} alt={prayerText} width={goldChip.width} height={20} />
+              ) : prayerText ? (
+                <Text size="body" weight="semibold" color={GOLD}>{prayerText}</Text>
+              ) : null}
             </Box>
             <Box flexDirection="row" gap={1} alignItems="center">
               <Text size="body" weight="semibold" dimColor>{headline}</Text>
@@ -680,8 +701,8 @@ export const register: Register = on => {
         <Box flexDirection="column" alignItems="center" justifyContent="flex-end">
           {Svg ? (
             <Svg
-              source={characterSvg(mood)}
-              alt={`Pixel Yemeni companion, ${mood}`}
+              source={characterSvg(mood, !!salah)}
+              alt={salah ? `Pixel Yemeni companion calling Salah for ${salah.name}` : `Pixel Yemeni companion, ${mood}`}
               width={WIDTH * SCALE}
               height={(HEIGHT + HEADROOM) * SCALE}
               isInteractive

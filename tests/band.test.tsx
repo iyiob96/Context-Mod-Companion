@@ -211,3 +211,43 @@ test('header shows the next prayer; legend says agents; Ultracave runs the cavem
   }
   expect(ran).toEqual(['caveman:ultracave', 'caveman:ultracave'])
 })
+
+test('a minute before Dhuhr the chibi calls Salah and the time turns into a gold chip', async ($, on) => {
+  on('session.usage', () => ({ value: usage(9) }))
+  on('process.run', () => ({ value: { exitCode: 0, stdout: RTK, stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }))
+  on('prompt.submit', ($, e) => ({ text: e.text }))
+  on('session.measure', ($, e) => ({ changed: e.changed }))
+  on('env.get', ($, e) => ({ value: e.name === 'TZ' ? 'Asia/Aden' : undefined }))
+  on('fs.list', () => ({ deny: 'none' }))
+  on('fs.read', () => ({ deny: 'none' }))
+  on('session.start', ($, e) => ({ cwd: e.cwd }))
+  on('clock.every', () => ({ value: undefined }))
+  on('clock.now', () => ({ value: Date.UTC(2026, 10, 21, 9, 0) })) // 12:00 in Aden
+  on('command.register', ($, e) => ({ value: e }) as never)
+  on('command.list', () => ({ value: [] }) as never)
+  on('http.fetch', () => {
+    const timings = { Fajr: '04:50', Dhuhr: '12:01', Asr: '15:12', Maghrib: '17:35', Isha: '19:05' }
+    return { value: { status: 200, ok: true, headers: {}, text: JSON.stringify({ data: { timings } }) } } as never
+  })
+  on('ui.render', ($, e) => {
+    const { Text } = $.ui.resolve(e)
+    return <Text>engine</Text>
+  })
+
+  await $.session.start({ cwd: 'C:/work', source: 'startup' } as never)
+  await $.prompt.submit({ text: 'hi', wait: false, origin: { kind: 'user' } } as never)
+  await measure($, 9)
+
+  let ui = await $.ui.mount({ ...BAND, surface: 'desktop' })
+  const calling = async () => (await ui.findAll({ type: 'Svg' })).some(el => /calling Salah for Dhuhr/.test(String(el.props.alt)))
+  for (let i = 0; i < 50 && !(await calling()); i++) {
+    await ui.unmount()
+    await new Promise<void>(r => setTimeout(() => r(), 10))
+    ui = await $.ui.mount({ ...BAND, surface: 'desktop' })
+  }
+  expect(await calling()).toBe(true)
+  const svgs = await ui.findAll({ type: 'Svg' })
+  expect(svgs.some(el => el.props.alt === '🕌 Dhuhr 12:01 · in 1m')).toBe(true)
+  expect(svgs.some(el => /Salah/.test(String(el.props.source)) || /animate/.test(String(el.props.source)))).toBe(true)
+  await ui.unmount()
+})

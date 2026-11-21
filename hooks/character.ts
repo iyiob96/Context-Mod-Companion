@@ -2,7 +2,7 @@
 // Pure data module, no imports.
 
 export type Mood = 'happy' | 'normal' | 'worried' | 'devastated'
-export type Pose = 'rest' | 'wave'
+export type Pose = 'rest' | 'wave' | 'pray'
 
 export const WIDTH = 24
 export const HEIGHT = 40
@@ -93,7 +93,7 @@ function drawLegs(g: Grid): void {
   px(g, 18, 36, 'v')
 }
 
-function drawTorso(g: Grid, slump: boolean, wave: boolean): void {
+function drawTorso(g: Grid, slump: boolean, wave: boolean, pray = false): void {
   const o = slump ? 1 : 0
   // puffy raised shoulders (flattened when slumped)
   if (!slump) {
@@ -157,17 +157,19 @@ function drawTorso(g: Grid, slump: boolean, wave: boolean): void {
 
   if (!slump) {
     // his right hand gripping the jambiya handle (viewer left)
-    stamp(g, 4, 20, ['.wwwKSSSK', 'wwwwKSSsK', '.KKKKKKK.'])
+    if (!pray) stamp(g, 4, 20, ['.wwwKSSSK', 'wwwwKSSsK', '.KKKKKKK.'])
     // other arm hanging, hand at the side (raised instead when waving)
-    if (!wave) {
+    if (!wave && !pray) {
       rect(g, 21, 26, 22, 27, 'S')
       px(g, 21, 27, 's')
     }
   } else {
     // both arms hanging limp
-    rect(g, 1, 26, 2, 27, 'S')
-    px(g, 2, 27, 's')
-    if (!wave) {
+    if (!pray) {
+      rect(g, 1, 26, 2, 27, 'S')
+      px(g, 2, 27, 's')
+    }
+    if (!wave && !pray) {
       rect(g, 21, 26, 22, 27, 'S')
       px(g, 21, 27, 's')
     }
@@ -229,25 +231,33 @@ function drawHead(g: Grid, dy: number): void {
 }
 
 // His left arm (viewer right) raised with an open palm beside the turban: "salam".
+const RAISED_ARM = [
+  '..K.K.K.',
+  '.KSKSKSK',
+  '.KSKSKSK',
+  'KKSSSSSK',
+  'KSSSSSsK',
+  '.KKSSSsK',
+  '..KsSSsK',
+  '..KKWWWK',
+  '...KWWWK',
+  '...KWWWK',
+  '...KWWWK',
+  '...KWWWK',
+  '...KwWWK',
+  '...KwWWK',
+  '...KwWWK',
+  '...KwWWK',
+]
+
 function drawWave(g: Grid, dy: number): void {
-  stamp(g, 16, 1 + dy, [
-    '..K.K.K.',
-    '.KSKSKSK',
-    '.KSKSKSK',
-    'KKSSSSSK',
-    'KSSSSSsK',
-    '.KKSSSsK',
-    '..KsSSsK',
-    '..KKWWWK',
-    '...KWWWK',
-    '...KWWWK',
-    '...KWWWK',
-    '...KWWWK',
-    '...KwWWK',
-    '...KwWWK',
-    '...KwWWK',
-    '...KwWWK',
-  ])
+  stamp(g, 16, 1 + dy, RAISED_ARM)
+}
+
+// Takbir: both arms raised, open palms beside the turban (mirror of the wave arm).
+function drawPray(g: Grid, dy: number): void {
+  drawWave(g, dy)
+  stamp(g, 0, 1 + dy, RAISED_ARM.map((r) => r.split('').reverse().join('')))
 }
 
 function drawFace(g: Grid, mood: Mood, dy: number): void {
@@ -314,11 +324,13 @@ export function characterGrid(mood: Mood, pose: Pose = 'rest'): string[] {
   const g = blank()
   const slump = mood === 'devastated'
   const wave = pose === 'wave'
+  const pray = pose === 'pray'
   const dy = slump ? 1 : 0
   drawLegs(g)
-  drawTorso(g, slump, wave)
+  drawTorso(g, slump, wave, pray)
   drawHead(g, dy)
   if (wave) drawWave(g, dy)
+  if (pray) drawPray(g, dy)
   drawFace(g, mood, dy)
   outline(g)
   return g.map((row) => row.join(''))
@@ -326,7 +338,7 @@ export function characterGrid(mood: Mood, pose: Pose = 'rest'): string[] {
 
 function selfCheck(): void {
   for (const m of ['happy', 'normal', 'worried', 'devastated'] as Mood[]) {
-    for (const pose of ['rest', 'wave'] as Pose[]) {
+    for (const pose of ['rest', 'wave', 'pray'] as Pose[]) {
       const rows = characterGrid(m, pose)
       const id = `${m}/${pose}`
       if (rows.length !== HEIGHT) throw new Error(`character: ${id} has ${rows.length} rows`)

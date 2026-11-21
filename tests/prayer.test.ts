@@ -1,6 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 
-import { cityOf, countdown, localNow, nextPrayer, parseTimings, timingsUrl } from '../hooks/prayer'
+import { cityOf, countdown, localNow, nextPrayer, parseTimings, reminderOf, timingsUrl } from '../hooks/prayer'
 
 const T = { Fajr: '04:50', Dhuhr: '11:58', Asr: '15:12', Maghrib: '17:35', Isha: '19:05' }
 
@@ -20,4 +20,16 @@ test('city, URL, local time and parsing', () => {
   expect(localNow('Asia/Riyadh', Date.UTC(2026, 10, 21, 9, 30))).toEqual({ date: '21-11-2026', minutes: 12 * 60 + 30 })
   expect(parseTimings(JSON.stringify({ data: { timings: { ...T, Fajr: '4:50 (+03)' } } }))?.Fajr).toBe('04:50')
   expect(parseTimings('{"data":{}}')).toBeNull()
+})
+
+test('reminder runs from 2 minutes before to 15 minutes after a prayer', () => {
+  const asr = 15 * 60 + 12
+  expect(reminderOf(T, asr - 3)).toBeNull()
+  expect(reminderOf(T, asr - 2)?.text).toBe('Asr 15:12 · in 2m')
+  expect(reminderOf(T, asr)?.text).toBe('Asr now')
+  expect(reminderOf(T, asr + 6)?.text).toBe('Asr now · 6m ago')
+  expect(reminderOf(T, asr + 15)?.name).toBe('Asr')
+  expect(reminderOf(T, asr + 16)).toBeNull()
+  expect(reminderOf(T, 23 * 60 + 59)).toBeNull()
+  expect(reminderOf(T, 4 * 60 + 48)?.text).toBe('Fajr 04:50 · in 2m')
 })
