@@ -31,6 +31,8 @@ const setupAtom = atom({ plugin: 'yemeni-context-band', key: 'setup' } as const,
 
 const ACCENT = '#e0875a'
 const RTK = '#7ccf8a'
+const GOLD = '#d4a72c'
+const RADIUS = 2 // px, shared by the legend swatches and the % badge
 const SCALE = 3 // CSS px per character pixel
 const FREE = '#3a3f4b'
 const BUFFER = '#7b8190'
@@ -354,6 +356,20 @@ function characterSvg(mood: Mood): string {
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${WIDTH} ${H}" width="${WIDTH * SCALE}" height="${H * SCALE}" shape-rendering="crispEdges">${bubbleSvg()}<g transform="translate(0 ${HEADROOM})"><g>${bob}${rest}${wave}</g></g><rect id="hit" x="0" y="${HEADROOM}" width="${WIDTH}" height="${HEIGHT}" fill="transparent" pointer-events="all" style="cursor:pointer"><title>Say salam</title></rect></svg>`
 }
 
+const swatchSvg = (color: string) =>
+  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10" width="10" height="10"><rect width="10" height="10" rx="${RADIUS}" fill="${color}"/></svg>`
+
+function badgeSvg(text: string, fill: string): { source: string; width: number } {
+  const width = 9 * text.length + 12
+  return {
+    width,
+    source: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} 20" width="${width}" height="20"><rect width="${width}" height="20" rx="${RADIUS}" fill="${fill}"/><text x="${width / 2}" y="14.5" text-anchor="middle" font-family="-apple-system, 'Segoe UI', system-ui, sans-serif" font-size="14" font-weight="600" fill="#1b1b1b">${text}</text></svg>`,
+  }
+}
+
+const dividerSvg = (height: number) =>
+  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1 ${height}" width="1" height="${height}"><rect width="1" height="${height}" fill="#888888" fill-opacity="0.5"/></svg>`
+
 function barSvg(usage: Usage): string {
   const W = 1000
   const H = 14
@@ -561,6 +577,7 @@ export const register: Register = on => {
         <ui.Button key="auk-audit" label="AUK design audit" onPress={() => void $.prompt.submit({ text: AUK_AUDIT_PROMPT })} />
         <ui.Button key="security-audit" label="Security audit" onPress={() => void $.prompt.submit({ text: SECURITY_AUDIT_PROMPT })} />
         {ultracave ? <ui.Button key="ultracave" label="Ultracave" onPress={() => void $.command.run({ command: ultracave })} /> : null}
+        {agentsButton}
       </ui.Box>
     )
 
@@ -593,9 +610,9 @@ export const register: Register = on => {
         <Box flexDirection="row" alignItems="stretch" gap={1} borderStyle="round" borderDimColor paddingX={1}>
           <Box flexDirection="column" flexGrow={1} flexShrink={1}>
             <Box flexDirection="row" gap={2}>
-              <Text color={ACCENT} bold>◆ context</Text>
+              <Text color={ACCENT} bold>◆ Context</Text>
               <Text color={RTK} bold>{`⚡ RTK ${rtkTotal}`}</Text>
-              {prayerText ? <Text dimColor>{prayerText}</Text> : null}
+              {prayerText ? <Text color={GOLD} bold>{prayerText}</Text> : null}
               <Text dimColor>{headline}</Text>
               <Text bold color={ACCENT}>{`[${Math.round(pct)}%]`}</Text>
             </Box>
@@ -612,10 +629,9 @@ export const register: Register = on => {
             </Box>
             {actionButtons}
           </Box>
-          <Box width={1} backgroundColor="#555555" />
+          <Text dimColor>{Array(art.rows).fill('│').join('\n')}</Text>
           <Box flexDirection="column" alignItems="center" justifyContent="flex-end">
             <Raster key="yemeni" columns={art.columns} rows={art.rows} cells={art.cells} />
-            {agentsButton}
           </Box>
         </Box>,
       )
@@ -624,31 +640,34 @@ export const register: Register = on => {
     const table = $.ui.resolve(e)
     const { Box, Text } = table
     const Svg = 'Svg' in table ? table.Svg : undefined
+    const badge = badgeSvg(`${Math.round(pct)}%`, left > 40 ? '#9be3a0' : left > 30 ? '#f2c14e' : '#f07a6a')
 
     // One framed card: the context details on the left, a divider, then the
-    // companion standing with the Agents button under him. Every header item
-    // shares one text size.
+    // companion. Every header item shares one size and weight; corners and the
+    // hairline divider are SVG because Box and Text have no radius.
     return withSetup(
       <Box flexDirection="row" alignItems="stretch" gap={2} borderStyle="round" borderDimColor paddingX={1}>
         <Box flexDirection="column" flexGrow={1} flexShrink={1} gap={1}>
           <Box flexDirection="row" justifyContent="space-between" alignItems="center">
             <Box flexDirection="row" gap={2} alignItems="center">
-              <Text size="body" weight="medium" color={ACCENT}>◆ context</Text>
-              <Text size="body" weight="medium" color={RTK}>{`⚡ RTK ${rtkTotal}`}</Text>
-              {prayerText ? <Text size="body" dimColor>{prayerText}</Text> : null}
+              <Text size="body" weight="semibold" color={ACCENT}>◆ Context</Text>
+              <Text size="body" weight="semibold" color={RTK}>{`⚡ RTK ${rtkTotal}`}</Text>
+              {prayerText ? <Text size="body" weight="semibold" color={GOLD}>{prayerText}</Text> : null}
             </Box>
             <Box flexDirection="row" gap={1} alignItems="center">
-              <Text size="body" dimColor>{headline}</Text>
-              <Text size="body" weight="medium" color="#1b1b1b" backgroundColor={left > 40 ? '#9be3a0' : left > 30 ? '#f2c14e' : '#f07a6a'}>
-                {` ${Math.round(pct)}% `}
-              </Text>
+              <Text size="body" weight="semibold" dimColor>{headline}</Text>
+              {Svg ? (
+                <Svg source={badge.source} alt={`${Math.round(pct)}% used`} width={badge.width} height={20} />
+              ) : (
+                <Text size="body" weight="semibold">{` ${Math.round(pct)}% `}</Text>
+              )}
             </Box>
           </Box>
           {Svg && usage ? <Svg source={barSvg(usage)} alt={`Context ${Math.round(pct)}% used`} /> : null}
           <Box flexDirection="row" flexWrap="wrap">
             {legend.map(({ s, color }) => (
               <Box flexDirection="row" gap={1} width="20%">
-                <Text size="footnote" color={color}>■</Text>
+                {Svg ? <Svg source={swatchSvg(color)} alt="" width={10} height={10} /> : <Text size="footnote" color={color}>■</Text>}
                 <Text size="footnote" dimColor>{legendLabel(s.name)}</Text>
                 <Text size="footnote" weight="medium">{fmt(s.tokens)}</Text>
               </Box>
@@ -656,7 +675,7 @@ export const register: Register = on => {
           </Box>
           {actionButtons}
         </Box>
-        <Box width={1} backgroundColor="#555555" />
+        {Svg ? <Svg source={dividerSvg((HEIGHT + HEADROOM) * SCALE)} alt="" width={1} height={(HEIGHT + HEADROOM) * SCALE} /> : null}
         <Box flexDirection="column" alignItems="center" justifyContent="flex-end">
           {Svg ? (
             <Svg
@@ -667,7 +686,6 @@ export const register: Register = on => {
               isInteractive
             />
           ) : null}
-          {agentsButton}
         </Box>
       </Box>,
     )

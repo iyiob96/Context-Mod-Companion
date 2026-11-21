@@ -73,7 +73,7 @@ test('band stays hidden until the first prompt, then shows context and RTK', asy
   engineBottom(on, () => pct)
 
   const before = await $.ui.mount({ ...BAND, surface: 'desktop' })
-  expect(await before.find({ type: 'Text', text: /context/ })).toBeUndefined()
+  expect(await before.find({ type: 'Text', text: /Context/ })).toBeUndefined()
   await before.unmount()
 
   await $.prompt.submit({ text: 'hi', wait: false, origin: { kind: 'user' } } as never)
@@ -89,7 +89,7 @@ test('band stays hidden until the first prompt, then shows context and RTK', asy
 
   for (const surface of ['desktop', 'terminal'] as const) {
     const ui = await $.ui.mount({ ...BAND, surface })
-    expect(await ui.find({ type: 'Text', text: /context/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /Context/ })).toBeDefined()
     expect(await ui.find({ type: 'Text', text: /90k of 1M · compacts at 987k/ })).toBeDefined()
     expect(await ui.find({ type: 'Text', text: /⚡ RTK 20.5k/ })).toBeDefined()
     expect(await ui.find({ type: 'Text', text: /this session|% avg|% left/ })).toBeUndefined()
