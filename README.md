@@ -1,8 +1,8 @@
 # Context Mod Companion
 
-A Claude Code mod that puts a context-window band above the prompt box. It shows your [RTK](https://github.com/rtk-ai/rtk) token savings, and a pixel Yemeni companion stands beside it. His mood follows how much context you have left. Its one-click setup also installs RTK and [Matt Pocock's skills](https://github.com/mattpocock/skills).
+A Claude Code mod that puts one card above the prompt box: your context window by category, your [RTK](https://github.com/rtk-ai/rtk) token savings, the next Islamic prayer time, and four one-click actions. A pixel Yemeni companion stands in the card. His mood follows how much context you have left, and he calls "Salah" when a prayer is due. Its one-click setup also installs RTK and [Matt Pocock's skills](https://github.com/mattpocock/skills).
 
-![The band above the prompt, with the companion standing to its right](assets/band.png)
+![The band: Context, RTK and the next prayer in the header, the usage bar, a five-column legend, four buttons, and the companion behind a divider](assets/band.png)
 
 ## Install
 
@@ -59,13 +59,33 @@ After setup, run `/mattpocock-skills:setup-matt-pocock-skills` in a project to s
 
 ## What you get
 
+The band pops up after the first prompt you send in a session.
+
 | Part | What it shows |
 | --- | --- |
-| Context | Tokens used out of your window, the auto-compact point, a % used badge, a bar split by category (system prompt, tools, MCP tools, agents, memory files, skills, messages) and a legend with token counts |
-| ⚡ RTK | Total tokens RTK has saved, from `rtk gain` |
-| Companion | A chibi Yemeni man in traditional dress (turban, khanjar, bandoliers) with no background. Click him and he raises his hand and says "Salam" |
+| Header | ◆ Context · ⚡ RTK tokens saved (from `rtk gain`) · 🕌 the next prayer with a countdown. On the right: tokens used of your window, the auto-compact point and a % used badge |
+| Usage bar | Your context window split by category, with a marker where auto-compact kicks in |
+| Legend | Five to a row: system prompt, system tools, mcp tools, mcp ins. (MCP server instructions), agents, memory files, skills, messages, free space, each with its token count |
+| Buttons | See [Buttons](#buttons) |
+| Companion | A chibi Yemeni man in traditional dress (turban, khanjar, bandoliers), behind a thin divider on the right. Click him and he raises his hand and says "Salam" |
 
-The band pops up after the first prompt you send in a session.
+### Buttons
+
+| Button | What it does | Shown when |
+| --- | --- | --- |
+| AUK design audit | Asks Claude to run the `auk-design-auditor` subagent on a document; Claude asks you which file | Always (the subagent lives in the AUK Design System folder, so start the session there) |
+| Security audit | Asks Claude to run the `security-audit` skill ([cloudflare/security-audit-skill](https://github.com/cloudflare/security-audit-skill)) on the project. Claude recommends a targeted or full audit with its rough cost and waits for your yes | Always |
+| Ultracave | Runs the caveman plugin's `/ultracave` | caveman is installed |
+| Agents | Runs `/agents-info`, which opens savvy-flow's live agents panel or closes it if it's open | savvy-flow is installed |
+
+### Prayer time and the Salah reminder
+
+![The Salah reminder: a gold chip in the header and the companion raising both hands under a Salah bubble with a gold glow](assets/salah-reminder.png)
+
+- **Next prayer:** the header shows the next of Fajr, Dhuhr, Asr, Maghrib and Isha in gold, with a countdown that updates every minute.
+- **Reminder:** from 2 minutes before a prayer until 15 minutes after it, the companion raises both hands with a calm face under a bouncing, gold-flashing "Salah" bubble, with a gold glow pulsing behind him. The prayer time turns into a gold chip that counts down ("Asr 15:09 · in 2m"), then up ("Asr now · 6m ago").
+- **Where the times come from:** the [Aladhan API](https://aladhan.com/prayer-times-api) with the Umm al-Qura (Makkah) method, for the city in your timezone: Asia/Dubai gives Dubai. The city name is sent to api.aladhan.com once a day; nothing else is.
+- **Change the city:** set the `TZ` environment variable to another IANA timezone, such as `Asia/Aden`. Where one timezone covers a whole country, times can be a few minutes off away from the named city.
 
 ![All four moods, at rest and waving](assets/moods-and-wave.png)
 
@@ -76,7 +96,9 @@ The band pops up after the first prompt you send in a session.
 | 40–60% | Worried: raised brows, wavy mouth, sweat drop |
 | 40% or less | Devastated: tears, wailing, slumped |
 
-The full drawing (bar chart, animated companion, click to wave) is for the Claude Code desktop app. In a terminal the band falls back to text blocks and a half-block pixel companion, and clicking him does nothing.
+During the Salah reminder he always shows the calm face.
+
+The full drawing (bar chart, rounded swatches and badge, animated companion, click to wave, the Salah glow) is for the Claude Code desktop app. In a terminal the band falls back to text blocks, ■ swatches, a │ divider and a half-block pixel companion; the buttons work, clicking him does nothing, and the reminder shows the raised hands and a gold chip without animation.
 
 ## Turn it off or on
 
@@ -88,8 +110,9 @@ claude plugin enable yemeni-context-band@context-mod-companion
 ## Develop
 
 ```
-hooks/register.tsx   the band, the companion's drawing and click, first-run setup
-hooks/character.ts   the pixel companion: palette, 24x40 grid per mood and pose
+hooks/register.tsx   the band, the companion's drawing and click, buttons, first-run setup
+hooks/character.ts   the pixel companion: palette, 24x40 grid per mood and pose (rest, wave, pray)
+hooks/prayer.ts      prayer times: city from timezone, Aladhan URL, next prayer, reminder window
 hooks/setup.ts       setup steps, texts and plain helpers
 types/index.d.ts     state contract
 tests/               claude plugin test suites

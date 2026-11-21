@@ -6,7 +6,7 @@
     {
       "name": "yemeni-context-band",
       "source": "./",
-      "description": "Context window band above the prompt with RTK token savings and a clickable pixel Yemeni companion; a Finish setup button installs RTK and Matt Pocock's skills",
+      "description": "Context window band with RTK savings, prayer times and a Salah reminder, audit and agent buttons, and a clickable pixel Yemeni companion; a Finish setup button installs RTK and Matt Pocock's skills",
       "homepage": "https://github.com/iyiob96/Context-Mod-Companion",
       "repository": "https://github.com/iyiob96/Context-Mod-Companion",
       "license": "MIT",
