@@ -308,7 +308,8 @@ function pixelText(text: string, x0: number, y0: number, fill: string): { svg: s
 }
 
 // Rows of headroom above him for the bubble.
-const HEADROOM = 11
+// The bubble pops up over his turban while he waves, so no space is kept above him.
+const HEADROOM = 0
 const GREET = '2.6s'
 
 function bubbleSvg(): string {
@@ -353,7 +354,7 @@ function characterSvg(mood: Mood): string {
   const rest = `<g>${gridRects(characterGrid(mood, 'rest'))}${blink}<set attributeName="visibility" to="hidden" begin="hit.click" dur="${GREET}"/></g>`
   const wave = `<g visibility="hidden">${gridRects(characterGrid(mood, 'wave'))}<set attributeName="visibility" to="visible" begin="hit.click" dur="${GREET}"/></g>`
   const H = HEIGHT + HEADROOM
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${WIDTH} ${H}" width="${WIDTH * SCALE}" height="${H * SCALE}" shape-rendering="crispEdges">${bubbleSvg()}<g transform="translate(0 ${HEADROOM})"><g>${bob}${rest}${wave}</g></g><rect id="hit" x="0" y="${HEADROOM}" width="${WIDTH}" height="${HEIGHT}" fill="transparent" pointer-events="all" style="cursor:pointer"><title>Say salam</title></rect></svg>`
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${WIDTH} ${H}" width="${WIDTH * SCALE}" height="${H * SCALE}" shape-rendering="crispEdges"><g transform="translate(0 ${HEADROOM})"><g>${bob}${rest}${wave}</g></g>${bubbleSvg()}<rect id="hit" x="0" y="${HEADROOM}" width="${WIDTH}" height="${HEIGHT}" fill="transparent" pointer-events="all" style="cursor:pointer"><title>Say salam</title></rect></svg>`
 }
 
 const swatchSvg = (color: string) =>
@@ -667,7 +668,7 @@ export const register: Register = on => {
           <Box flexDirection="row" flexWrap="wrap">
             {legend.map(({ s, color }) => (
               <Box flexDirection="row" gap={1} width="20%">
-                {Svg ? <Svg source={swatchSvg(color)} alt="" width={10} height={10} /> : <Text size="footnote" color={color}>■</Text>}
+                {Svg ? <Svg source={swatchSvg(color)} alt={`${legendLabel(s.name)} color`} width={10} height={10} /> : <Text size="footnote" color={color}>■</Text>}
                 <Text size="footnote" dimColor>{legendLabel(s.name)}</Text>
                 <Text size="footnote" weight="medium">{fmt(s.tokens)}</Text>
               </Box>
@@ -675,7 +676,7 @@ export const register: Register = on => {
           </Box>
           {actionButtons}
         </Box>
-        {Svg ? <Svg source={dividerSvg((HEIGHT + HEADROOM) * SCALE)} alt="" width={1} height={(HEIGHT + HEADROOM) * SCALE} /> : null}
+        {Svg ? <Svg source={dividerSvg((HEIGHT + HEADROOM) * SCALE)} alt="Divider" width={1} height={(HEIGHT + HEADROOM) * SCALE} /> : null}
         <Box flexDirection="column" alignItems="center" justifyContent="flex-end">
           {Svg ? (
             <Svg
