@@ -19,6 +19,7 @@ function usage(percent: number): SessionUsage {
       breakdown: {
         categories: [
           { name: 'System prompt', tokens: 4_200, color: 'promptBorder', isDeferred: false, kind: 'used' },
+          { name: 'MCP server instructions', tokens: 1_000, color: 'permission', isDeferred: false, kind: 'used' },
           { name: 'Messages', tokens: tokens - 4_200, color: 'permission', isDeferred: false, kind: 'used' },
           { name: 'Free space', tokens: window - tokens, color: 'inactive', isDeferred: false, kind: 'free' },
         ],
@@ -42,10 +43,13 @@ function usage(percent: number): SessionUsage {
 
 const RTK = JSON.stringify({ summary: { total_commands: 164, total_saved: 20_537, avg_savings_pct: 48.05 } })
 
-function engineBottom(on: On, percent: () => number) {
+function engineBottom(on: On, percent: () => number, prompts: string[] = []) {
   on('session.usage', () => ({ value: usage(percent()) }))
   on('process.run', () => ({ value: { exitCode: 0, stdout: RTK, stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }))
-  on('prompt.submit', ($, e) => ({ text: e.text }))
+  on('prompt.submit', ($, e) => {
+    if (e.origin.kind === 'plugin') prompts.push(e.text)
+    return { text: e.text }
+  })
   on('session.measure', ($, e) => ({ changed: e.changed }))
   on('env.get', () => ({ value: undefined }))
   on('fs.list', () => ({ deny: 'none' }))
@@ -136,4 +140,23 @@ test('the Agents button under the companion toggles /agents-info, only when savv
     await ui.unmount()
   }
   expect(ran).toEqual(['agents-info ', 'agents-info '])
+})
+
+test('legend shortens long names, and the audit buttons start their prompts', async ($, on) => {
+  const prompts: string[] = []
+  engineBottom(on, () => 9, prompts)
+  await $.prompt.submit({ text: 'hi', wait: false, origin: { kind: 'user' } } as never)
+  await measure($, 9)
+
+  for (const surface of ['desktop', 'terminal'] as const) {
+    const ui = await $.ui.mount({ ...BAND, surface })
+    expect(await ui.find({ type: 'Text', text: /mcp ins\./ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /mcp server instructions/ })).toBeUndefined()
+    await ui.press({ key: 'auk-audit' })
+    await ui.press({ key: 'security-audit' })
+    await ui.unmount()
+  }
+  expect(prompts).toHaveLength(4)
+  expect(prompts[0]).toContain('auk-design-auditor')
+  expect(prompts[1]).toContain('security-audit skill')
 })

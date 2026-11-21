@@ -49,6 +49,15 @@ function colorOf(s: Segment, i: number): string {
   return SEGMENT_COLORS.find(([re]) => re.test(s.name))?.[1] ?? FALLBACK[i % FALLBACK.length]!
 }
 
+// Legend labels as /context names them, lowercased, a few shortened to fit five a row.
+const SHORT_LABEL: Record<string, string> = { 'mcp server instructions': 'mcp ins.' }
+const legendLabel = (name: string) => SHORT_LABEL[name.toLowerCase()] ?? name.toLowerCase()
+
+const AUK_AUDIT_PROMPT =
+  "Use the auk-design-auditor subagent to audit a document against the AUK design system. Ask me which file to audit first. If that subagent isn't available in this session, tell me to start a session in the AUK Design System folder."
+const SECURITY_AUDIT_PROMPT =
+  'Run a security audit of this project with the security-audit skill. Before you start, recommend a targeted or a full audit with its rough cost, and wait for my yes.'
+
 function fmt(n: number): string {
   if (n >= 1_000_000) return `${+(n / 1_000_000).toFixed(n % 1_000_000 === 0 ? 0 : 1)}M`
   if (n >= 1_000) return `${+(n / 1_000).toFixed(n >= 100_000 ? 0 : 1)}k`
@@ -519,6 +528,14 @@ export const register: Register = on => {
       />
     ) : null
 
+    // Each starts a turn: the prompt names what to run and asks before anything big.
+    const auditButtons = (
+      <ui.Box flexDirection="row" gap={1}>
+        <ui.Button key="auk-audit" label="AUK design audit" onPress={() => void $.prompt.submit({ text: AUK_AUDIT_PROMPT })} />
+        <ui.Button key="security-audit" label="Security audit" onPress={() => void $.prompt.submit({ text: SECURITY_AUDIT_PROMPT })} />
+      </ui.Box>
+    )
+
     const usage = await read($, usageAtom)
     const rtk = await read($, rtkAtom)
     const pct = usage?.percent ?? 0
@@ -543,25 +560,24 @@ export const register: Register = on => {
       return withSetup(
         <Box flexDirection="row" alignItems="flex-end" gap={2}>
           <Box flexDirection="column" flexGrow={1} borderStyle="round" borderDimColor paddingX={1}>
-            <Box flexDirection="row" justifyContent="space-between">
-              <Box flexDirection="row" gap={1}>
-                <Text color={ACCENT} bold>◆ context</Text>
-                <Text dimColor>{headline}</Text>
-                <Text bold color={ACCENT}>{`[${Math.round(pct)}%]`}</Text>
-              </Box>
+            <Box flexDirection="row" gap={1}>
+              <Text color={ACCENT} bold>◆ context</Text>
               <Text color={RTK} bold>{`⚡ RTK ${rtkTotal}`}</Text>
+              <Text dimColor>{headline}</Text>
+              <Text bold color={ACCENT}>{`[${Math.round(pct)}%]`}</Text>
             </Box>
             <Box flexDirection="row">
               {usage ? textBar(usage, barWidth).map(p => <Text color={p.color}>{p.text}</Text>) : <Text dimColor>…</Text>}
             </Box>
-            <Box flexDirection="row" flexWrap="wrap" columnGap={2}>
+            <Box flexDirection="row" flexWrap="wrap">
               {legend.map(({ s, color }) => (
-                <Box flexDirection="row" gap={1}>
+                <Box flexDirection="row" gap={1} width="20%">
                   <Text color={color}>■</Text>
-                  <Text dimColor>{`${s.name.toLowerCase()} ${fmt(s.tokens)}`}</Text>
+                  <Text dimColor wrap="truncate">{`${legendLabel(s.name)} ${fmt(s.tokens)}`}</Text>
                 </Box>
               ))}
             </Box>
+            {auditButtons}
           </Box>
           <Box flexDirection="column" alignItems="center">
             <Raster key="yemeni" columns={art.columns} rows={art.rows} cells={art.cells} />
@@ -579,29 +595,30 @@ export const register: Register = on => {
     // feet level with the band's bottom edge, right above the prompt.
     return withSetup(
       <Box flexDirection="row" alignItems="flex-end" gap={2}>
-        <Box flexDirection="row" alignItems="center" gap={2} flexGrow={1} flexShrink={1} borderStyle="round" borderDimColor paddingX={1}>
-          <Box flexDirection="column" flexGrow={1} flexShrink={1} gap={1}>
-            <Box flexDirection="row" justifyContent="space-between" alignItems="center">
+        <Box flexDirection="column" flexGrow={1} flexShrink={1} gap={1} borderStyle="round" borderDimColor paddingX={1}>
+          <Box flexDirection="row" justifyContent="space-between" alignItems="center">
+            <Box flexDirection="row" gap={2} alignItems="center">
               <Text color={ACCENT} bold>◆ context</Text>
-              <Box flexDirection="row" gap={1} alignItems="center">
-                <Text dimColor>{headline}</Text>
-                <Text bold color="#1b1b1b" backgroundColor={left > 40 ? '#9be3a0' : left > 30 ? '#f2c14e' : '#f07a6a'}>
-                  {` ${Math.round(pct)}% `}
-                </Text>
-              </Box>
+              <Text bold color={RTK}>{`⚡ RTK ${rtkTotal}`}</Text>
             </Box>
-            {Svg && usage ? <Svg source={barSvg(usage)} alt={`Context ${Math.round(pct)}% used`} /> : null}
-            <Box flexDirection="row" flexWrap="wrap" columnGap={2}>
-              {legend.map(({ s, color }) => (
-                <Box flexDirection="row" gap={1}>
-                  <Text color={color}>■</Text>
-                  <Text dimColor>{s.name.toLowerCase()}</Text>
-                  <Text bold>{fmt(s.tokens)}</Text>
-                </Box>
-              ))}
+            <Box flexDirection="row" gap={1} alignItems="center">
+              <Text dimColor>{headline}</Text>
+              <Text bold color="#1b1b1b" backgroundColor={left > 40 ? '#9be3a0' : left > 30 ? '#f2c14e' : '#f07a6a'}>
+                {` ${Math.round(pct)}% `}
+              </Text>
             </Box>
           </Box>
-          <Text bold color={RTK}>{`⚡ RTK ${rtkTotal}`}</Text>
+          {Svg && usage ? <Svg source={barSvg(usage)} alt={`Context ${Math.round(pct)}% used`} /> : null}
+          <Box flexDirection="row" flexWrap="wrap">
+            {legend.map(({ s, color }) => (
+              <Box flexDirection="row" gap={1} width="20%">
+                <Text size="footnote" color={color}>■</Text>
+                <Text size="footnote" dimColor wrap="truncate">{legendLabel(s.name)}</Text>
+                <Text size="footnote" bold>{fmt(s.tokens)}</Text>
+              </Box>
+            ))}
+          </Box>
+          {auditButtons}
         </Box>
         <Box flexDirection="column" alignItems="center">
           {Svg ? (
