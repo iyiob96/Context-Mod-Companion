@@ -1,5 +1,5 @@
 import { atom, read, update } from 'claude-code'
-import type { EngineInterface, Register } from 'claude-code'
+import type { EngineInterface, Register, RenderElement } from 'claude-code'
 
 import type { Rtk, Segment, Setup, SetupStep, Usage } from '../types'
 import { characterGrid, EYES, HEIGHT, PALETTE, SKIN, WIDTH } from './character'
@@ -171,7 +171,7 @@ async function claudeMdWithImports($: EngineInterface, path: string): Promise<st
   const md = await readTextQuiet($, path)
   if (md === null) return null
   const dir = path.replace(/[\\/][^\\/]*$/, '')
-  const imports = [...md.matchAll(/^@(\S+)\s*$/gm)].map(m => (/^([a-zA-Z]:)?[\\/]/.test(m[1]) ? m[1] : `${dir}/${m[1]}`))
+  const imports = [...md.matchAll(/^@(\S+)\s*$/gm)].map(m => (/^([a-zA-Z]:)?[\\/]/.test(m[1]!) ? m[1]! : `${dir}/${m[1]}`))
   const texts = await Promise.all(imports.map(f => readTextQuiet($, f)))
   return [md, ...texts].filter(t => t !== null).join('\n')
 }
@@ -497,8 +497,8 @@ export const register: Register = on => {
     // Other mods share this slot: draw theirs below ours instead of replacing it.
     // next(e) rejects only when nothing answers beneath (the test harness).
     const below = await next(e).catch(() => undefined)
-    const withSetup = (band: ReturnType<typeof ui.Box>) =>
-      setupRow || below ? (
+    const withSetup = (band: RenderElement | null) =>
+      setupRow || below || !band ? (
         <ui.Box flexDirection="column" gap={1}>
           {setupRow}
           {band}
@@ -507,7 +507,7 @@ export const register: Register = on => {
       ) : (
         band
       )
-    if (!shown) return setupRow ? withSetup(null) : below
+    if (!shown) return setupRow ? withSetup(null) : (below ?? <ui.Box />)
 
     // Opens savvy-flow's agents panel; drawn only where savvy-progress serves /agents-info.
     hasAgentsInfo ||= (await $.command.list().catch(() => [])).some(c => c.name === 'agents-info')
