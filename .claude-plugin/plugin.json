@@ -1,6 +1,6 @@
 {
   "name": "yemeni-context-band",
-  "version": "0.4.2",
+  "version": "0.5.0",
   "description": "Context-window band above the prompt: usage by category, RTK token savings, the next prayer time with a Salah reminder, one-click audit and agent buttons, and a pixel Yemeni companion whose mood follows how much context is left",
   "author": { "name": "Ibrahim" },
   "license": "MIT",
