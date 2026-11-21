@@ -408,6 +408,8 @@ function textBar(usage: Usage, width: number): { color: string; text: string }[]
 
 // ---------- hooks ----------
 
+let hasAgentsInfo = false
+
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     const result = await next(e)
@@ -507,6 +509,16 @@ export const register: Register = on => {
       )
     if (!shown) return setupRow ? withSetup(null) : below
 
+    // Opens savvy-flow's agents panel; drawn only where savvy-progress serves /agents-info.
+    hasAgentsInfo ||= (await $.command.list().catch(() => [])).some(c => c.name === 'agents-info')
+    const agentsButton = hasAgentsInfo ? (
+      <ui.Button
+        key="agents"
+        label="Agents"
+        onPress={() => void $.command.run({ command: 'agents-info', args: 'open' }).catch(() => $.ui.toast('Agents panel needs savvy-flow'))}
+      />
+    ) : null
+
     const usage = await read($, usageAtom)
     const rtk = await read($, rtkAtom)
     const pct = usage?.percent ?? 0
@@ -551,7 +563,10 @@ export const register: Register = on => {
               ))}
             </Box>
           </Box>
-          <Raster key="yemeni" columns={art.columns} rows={art.rows} cells={art.cells} />
+          <Box flexDirection="column" alignItems="center">
+            <Raster key="yemeni" columns={art.columns} rows={art.rows} cells={art.cells} />
+            {agentsButton}
+          </Box>
         </Box>,
       )
     }
@@ -588,15 +603,18 @@ export const register: Register = on => {
           </Box>
           <Text bold color={RTK}>{`⚡ RTK ${rtkTotal}`}</Text>
         </Box>
-        {Svg ? (
-          <Svg
-            source={characterSvg(mood)}
-            alt={`Pixel Yemeni companion, ${mood}`}
-            width={WIDTH * SCALE}
-            height={(HEIGHT + HEADROOM) * SCALE}
-            isInteractive
-          />
-        ) : null}
+        <Box flexDirection="column" alignItems="center">
+          {Svg ? (
+            <Svg
+              source={characterSvg(mood)}
+              alt={`Pixel Yemeni companion, ${mood}`}
+              width={WIDTH * SCALE}
+              height={(HEIGHT + HEADROOM) * SCALE}
+              isInteractive
+            />
+          ) : null}
+          {agentsButton}
+        </Box>
       </Box>,
     )
   })

@@ -112,3 +112,28 @@ test('mood follows context left', async ($, on) => {
     await ui.unmount()
   }
 })
+
+test('the Agents button under the companion runs /agents-info open, only when savvy-flow is there', async ($, on) => {
+  engineBottom(on, () => 9)
+  let hasSavvy = false
+  const ran: string[] = []
+  on('command.list', () => ({ value: hasSavvy ? [{ name: 'agents-info', description: '', source: 'plugin' }] : [] }) as never)
+  on('command.run', ($, e) => {
+    ran.push(`${e.command} ${e.args}`)
+    return { text: 'opened' }
+  })
+  await $.prompt.submit({ text: 'hi', wait: false, origin: { kind: 'user' } } as never)
+  await measure($, 9)
+
+  const without = await $.ui.mount({ ...BAND, surface: 'desktop' })
+  expect(await without.find({ key: 'agents' })).toBeUndefined()
+  await without.unmount()
+
+  hasSavvy = true
+  for (const surface of ['desktop', 'terminal'] as const) {
+    const ui = await $.ui.mount({ ...BAND, surface })
+    await ui.press({ key: 'agents' })
+    await ui.unmount()
+  }
+  expect(ran).toEqual(['agents-info open', 'agents-info open'])
+})
