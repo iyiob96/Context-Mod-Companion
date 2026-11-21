@@ -113,7 +113,7 @@ test('mood follows context left', async ($, on) => {
   }
 })
 
-test('the Agents button under the companion runs /agents-info open, only when savvy-flow is there', async ($, on) => {
+test('the Agents button under the companion toggles /agents-info, only when savvy-flow is there', async ($, on) => {
   engineBottom(on, () => 9)
   let hasSavvy = false
   const ran: string[] = []
@@ -135,5 +135,5 @@ test('the Agents button under the companion runs /agents-info open, only when sa
     await ui.press({ key: 'agents' })
     await ui.unmount()
   }
-  expect(ran).toEqual(['agents-info open', 'agents-info open'])
+  expect(ran).toEqual(['agents-info ', 'agents-info '])
 })

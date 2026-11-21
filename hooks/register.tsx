@@ -509,13 +509,13 @@ export const register: Register = on => {
       )
     if (!shown) return setupRow ? withSetup(null) : (below ?? <ui.Box />)
 
-    // Opens savvy-flow's agents panel; drawn only where savvy-progress serves /agents-info.
+    // Toggles savvy-flow's agents panel (bare /agents-info opens or closes it); drawn only where savvy-progress serves it.
     hasAgentsInfo ||= (await $.command.list().catch(() => [])).some(c => c.name === 'agents-info')
     const agentsButton = hasAgentsInfo ? (
       <ui.Button
         key="agents"
         label="Agents"
-        onPress={() => void $.command.run({ command: 'agents-info', args: 'open' }).catch(() => $.ui.toast('Agents panel needs savvy-flow'))}
+        onPress={() => void $.command.run({ command: 'agents-info' }).catch(() => $.ui.toast('Agents panel needs savvy-flow'))}
       />
     ) : null
 
