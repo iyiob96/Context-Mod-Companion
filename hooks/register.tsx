@@ -311,6 +311,7 @@ function pixelText(text: string, x0: number, y0: number, fill: string): { svg: s
 // The bubble pops up over his turban while he waves, so no space is kept above him.
 const HEADROOM = 0
 const GREET = '2.6s'
+const GLOW_PAD = 6 // columns added each side of him while the Salah glow shows
 
 // 'greet': hidden until he's clicked. 'alert': always up, bouncing, its body flashing gold.
 function bubbleSvg(word: string, mode: 'greet' | 'alert'): string {
@@ -345,6 +346,7 @@ function bubbleSvg(word: string, mode: 'greet' | 'alert'): string {
 // Around prayer time (`salah`) he raises both hands under a flashing "Salah"
 // bubble with a gold glow behind him, and clicking does nothing.
 function characterSvg(mood: Mood, salah = false): string {
+  if (salah) mood = 'normal' // the reminder always shows his calm face
   const blink =
     mood === 'devastated'
       ? ''
@@ -362,8 +364,10 @@ function characterSvg(mood: Mood, salah = false): string {
   const wave = `<g visibility="hidden">${gridRects(characterGrid(mood, 'wave'))}<set attributeName="visibility" to="visible" begin="hit.click" dur="${GREET}"/></g>`
   const H = HEIGHT + HEADROOM
   if (salah) {
-    const glow = `<ellipse cx="${WIDTH / 2}" cy="${H / 2 + 2}" rx="10" ry="16" fill="${GOLD}"><animate attributeName="opacity" values="0.55;0" dur="1.4s" repeatCount="indefinite"/><animate attributeName="rx" values="9;12" dur="1.4s" repeatCount="indefinite"/><animate attributeName="ry" values="15;20" dur="1.4s" repeatCount="indefinite"/></ellipse>`
-    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${WIDTH} ${H}" width="${WIDTH * SCALE}" height="${H * SCALE}" shape-rendering="crispEdges">${glow}<g>${gridRects(characterGrid(mood, 'pray'))}${blink}</g>${bubbleSvg('Salah', 'alert')}</svg>`
+    // Glow 1.5x the first version; the canvas widens by GLOW_PAD each side so it isn't cut off.
+    const glow = `<ellipse cx="${WIDTH / 2}" cy="${H / 2 + 2}" rx="15" ry="24" fill="${GOLD}"><animate attributeName="opacity" values="0.55;0" dur="1.4s" repeatCount="indefinite"/><animate attributeName="rx" values="13.5;18" dur="1.4s" repeatCount="indefinite"/><animate attributeName="ry" values="22.5;30" dur="1.4s" repeatCount="indefinite"/></ellipse>`
+    const w = WIDTH + 2 * GLOW_PAD
+    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${-GLOW_PAD} 0 ${w} ${H}" width="${w * SCALE}" height="${H * SCALE}" shape-rendering="crispEdges">${glow}<g>${gridRects(characterGrid(mood, 'pray'))}${blink}</g>${bubbleSvg('Salah', 'alert')}</svg>`
   }
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${WIDTH} ${H}" width="${WIDTH * SCALE}" height="${H * SCALE}" shape-rendering="crispEdges"><g transform="translate(0 ${HEADROOM})"><g>${bob}${rest}${wave}</g></g>${bubbleSvg('Salam', 'greet')}<rect id="hit" x="0" y="${HEADROOM}" width="${WIDTH}" height="${HEIGHT}" fill="transparent" pointer-events="all" style="cursor:pointer"><title>Say salam</title></rect></svg>`
 }
@@ -619,7 +623,7 @@ export const register: Register = on => {
 
     if (e.surface === 'terminal') {
       const { Box, Text, Raster } = $.ui.resolve(e)
-      const art = characterRaster(mood, salah ? 'pray' : 'rest')
+      const art = salah ? characterRaster('normal', 'pray') : characterRaster(mood)
       const barWidth = Math.max(10, e.props.bodyColumns - WIDTH - 10)
       return withSetup(
         <Box flexDirection="row" alignItems="stretch" gap={1} borderStyle="round" borderDimColor paddingX={1}>
@@ -703,7 +707,7 @@ export const register: Register = on => {
             <Svg
               source={characterSvg(mood, !!salah)}
               alt={salah ? `Pixel Yemeni companion calling Salah for ${salah.name}` : `Pixel Yemeni companion, ${mood}`}
-              width={WIDTH * SCALE}
+              width={(WIDTH + (salah ? 2 * GLOW_PAD : 0)) * SCALE}
               height={(HEIGHT + HEADROOM) * SCALE}
               isInteractive
             />

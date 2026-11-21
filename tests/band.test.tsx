@@ -248,6 +248,7 @@ test('a minute before Dhuhr the chibi calls Salah and the time turns into a gold
   expect(await calling()).toBe(true)
   const svgs = await ui.findAll({ type: 'Svg' })
   expect(svgs.some(el => el.props.alt === '🕌 Dhuhr 12:01 · in 1m')).toBe(true)
+  expect(svgs.find(el => /calling Salah/.test(String(el.props.alt)))?.props.width).toBe(108)
   expect(svgs.some(el => /Salah/.test(String(el.props.source)) || /animate/.test(String(el.props.source)))).toBe(true)
   await ui.unmount()
 })
