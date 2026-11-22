@@ -58,7 +58,7 @@ const SHORT_LABEL: Record<string, string> = { 'mcp server instructions': 'mcp in
 const legendLabel = (name: string) => SHORT_LABEL[name.toLowerCase()] ?? name.toLowerCase()
 
 const AUK_AUDIT_PROMPT =
-  "Use the auk-design-auditor subagent to audit a document against the AUK design system. Ask me which file to audit first. If that subagent isn't available in this session, tell me to start a session in the AUK Design System folder."
+  "Use the auk-design-auditor subagent to audit a document against the AUK design system. Ask me which file to audit first. If that subagent isn't available in this session, install it: run tools/install_auditor.py from my local clone of the AUK design system repository (ask me for the folder if you don't know it). Then carry on here without a restart: have a general-purpose subagent read the installed auk-design-auditor.md in full and follow it. If I have no clone, say so and stop; never audit without the spec."
 const SECURITY_AUDIT_PROMPT =
   'Run a security audit of this project with the security-audit skill. Before you start, recommend a targeted or a full audit with its rough cost, and wait for my yes.'
 

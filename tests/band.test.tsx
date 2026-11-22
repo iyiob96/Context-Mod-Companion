@@ -160,6 +160,7 @@ test('legend shortens long names, and the audit buttons start their prompts', as
   }
   expect(prompts).toHaveLength(4)
   expect(prompts[0]).toContain('auk-design-auditor')
+  expect(prompts[0]).toContain('tools/install_auditor.py')
   expect(prompts[1]).toContain('security-audit skill')
 })
 

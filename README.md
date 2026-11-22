@@ -73,7 +73,7 @@ The band pops up after the first prompt you send in a session.
 
 | Button | What it does | Shown when |
 | --- | --- | --- |
-| AUK design audit | Asks Claude to run the `auk-design-auditor` subagent on a document; Claude asks you which file | Always (the subagent lives in the AUK Design System folder, so start the session there) |
+| AUK design audit | Asks Claude to run the `auk-design-auditor` subagent on a document; Claude asks you which file | Always. If the subagent isn't installed, Claude installs it from your local clone of the (private) AUK design system repository and carries on in the same session |
 | Security audit | Asks Claude to run the `security-audit` skill ([cloudflare/security-audit-skill](https://github.com/cloudflare/security-audit-skill)) on the project. Claude recommends a targeted or full audit with its rough cost and waits for your yes | Always |
 | Ultracave | Runs the caveman plugin's `/ultracave` | caveman is installed |
 | Agents | Runs `/agents-info`, which opens savvy-flow's live agents panel or closes it if it's open | savvy-flow is installed |
